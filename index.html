@@ -39,7 +39,6 @@
         }
         .sidebar-left.collapsed + .sidebar-toggle-btn { left: 0; }
 
-        /* Workspace */
         .workspace { flex: 1; display: flex; height: 100%; overflow: hidden; position: relative; }
         .main-editor, .sidebar-right { display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; height: 100%; }
         .main-editor { width: 50%; background: var(--bg-color); }
@@ -47,12 +46,10 @@
         .resizer { width: 6px; background: var(--border-color); cursor: col-resize; transition: background 0.2s; z-index: 10; flex-shrink: 0; }
         .resizer:hover, .resizer.dragging { background: var(--accent-color); }
 
-        /* Headers & Configs */
         .sidebar-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 8px; min-height: 32px; }
         .sidebar-header h3 { margin: 0; color: var(--accent-color); font-size: 16px; }
         .header-actions { display: flex; gap: 6px; align-items: center; }
 
-        /* Collapsible */
         .collapsible-header { cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; margin: 0; font-size: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; color: var(--accent-color); }
         .collapsible-header:hover { opacity: 0.8; }
         .toggle-icon { font-size: 12px; transition: 0.2s; }
@@ -64,7 +61,6 @@
         
         .macro-box { background: #313244; padding: 10px; border-radius: 6px; display: flex; flex-direction: column; gap: 6px; border: 1px dashed #cba6f7; }
 
-        /* Tag & Character Management */
         .tag-color-row, .char-item-row { background: var(--box-bg); border: 1px solid var(--border-color); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 8px;}
         .tag-color-row { flex-direction: row; align-items: center; justify-content: space-between; cursor: grab; }
         .tag-color-row:active { cursor: grabbing; }
@@ -81,7 +77,6 @@
         .avatar-row input.avatar-url { flex: 1; }
         .del-btn { background: none; border: none; color: var(--danger-color); cursor: pointer; font-weight: bold; padding: 0 4px; }
         
-        /* Search Bar */
         .search-container { display: none; gap: 4px; margin-bottom: 8px; width: 100%; align-items: center; background: #11111b; padding: 6px; border-radius: 6px; border: 1px solid var(--accent-color); box-sizing: border-box; }
         .search-container.active { display: flex; }
         .search-input { flex: 1; padding: 4px 6px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--box-bg); color: #fff; font-size: 13px; }
@@ -89,7 +84,6 @@
         .search-nav-btn:hover { background: var(--border-color); }
         .search-count { font-size: 12px; color: var(--accent-color); min-width: 45px; text-align: center; }
 
-        /* Log Area */
         .log-container { flex: 1; background: #11111b; border: 2px dashed var(--border-color); border-radius: 8px; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; transition: 0.2s; position: relative; }
         .log-container.dragover { border-color: var(--accent-color) !important; background: #313244 !important; }
         .log-container::before { content: "로그 파일을 끌어다 놓으세요."; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #585b70; font-size: 13px; pointer-events: none; }
@@ -101,10 +95,8 @@
         .log-card:hover:not(.search-highlight) { box-shadow: inset 0 0 0 1px var(--accent-color); }
         .log-card.search-highlight { border: 2px solid var(--danger-color); box-shadow: 0 0 8px rgba(243, 139, 168, 0.5); }
         
-        /* 다중 선택 스타일 */
         .log-card.selected { background-color: var(--selected-bg) !important; border: 1px solid var(--accent-color); box-shadow: 0 0 5px rgba(116, 199, 236, 0.4); }
 
-        /* 카드 내 요소 정렬 개선 */
         .card-header-group { display: flex; align-items: center; gap: 8px; margin-top: 2px; flex-shrink: 0; }
         .card-avatar-wrapper { width: 32px; height: 32px; flex-shrink: 0; }
         .card-avatar { width: 100%; height: 100%; border-radius: 4px; object-fit: cover; object-position: top center; border: 1px solid var(--border-color); background: #45475a; display: none; }
@@ -121,7 +113,6 @@
         .inline-select { width: auto; max-width: 130px; font-size: 12px; padding: 2px; background: #11111b; color: #fff; border: 1px solid var(--accent-color); overflow: hidden; text-overflow: ellipsis; }
         .card-inline-editor { width: 100%; background: #11111b; color: #fff; border: 1px solid var(--accent-color); padding: 4px 6px; font-size: 14px; font-family: inherit; border-radius: 4px; resize: vertical; min-height: 40px; box-sizing: border-box; }
 
-        /* Buttons & Checks */
         .action-btn { background: var(--accent-color); color: #11111b; border: none; padding: 8px 12px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.2s; font-size: 13px; width: 100%; box-sizing: border-box; }
         .action-btn:hover { opacity: 0.9; }
         .sub-btn { background: #89b4fa; color: #11111b; border: none; padding: 4px 10px; font-size: 12px; font-weight: bold; border-radius: 4px; cursor: pointer; }
@@ -130,13 +121,11 @@
         .clear-btn:hover { opacity: 0.9; }
         .checkbox-label { font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
 
-        /* 우클릭 메뉴 */
         .context-menu { position: absolute; background: var(--sidebar-bg); border: 1px solid var(--border-color); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 1000; display: none; flex-direction: column; padding: 4px 0; min-width: 150px; }
         .context-menu-item { padding: 8px 16px; font-size: 13px; cursor: pointer; color: var(--text-color); }
         .context-menu-item:hover { background: var(--box-bg); color: var(--accent-color); }
         .context-menu-item.danger:hover { color: var(--danger-color); }
         
-        /* 다중 선택 기능 알림 바 */
         .selection-toolbar { display: none; background: var(--selected-bg); border: 1px solid var(--accent-color); padding: 8px 15px; border-radius: 6px; margin-bottom: 8px; align-items: center; justify-content: space-between; font-size: 13px; }
         .selection-toolbar.active { display: flex; }
     </style>
@@ -145,7 +134,6 @@
 
     <div class="container">
         <div class="sidebar-left" id="sidebarLeft">
-            <!-- 1. 기본 설정 -->
             <div class="config-group" style="background: none; border: none; padding: 0;">
                 <h3 style="margin:0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; color: var(--accent-color);">기본 설정</h3>
                 <input type="text" id="sessionTitle" value="" placeholder="세션명 입력">
@@ -154,14 +142,12 @@
                 <label class="checkbox-label"><input type="checkbox" id="enableColoringDice" checked> 판정 결과 색상 강조</label>
             </div>
 
-            <!-- 2. 탭 -->
             <div class="config-group">
                 <h3 class="collapsible-header" onclick="toggleCollapse(this)">🏷️ 탭<span class="toggle-icon">△</span></h3>
                 <div id="tagColorContainer" class="collapsible-content">
                 </div>
             </div>
 
-            <!-- 3. 캐릭터 -->
             <div class="config-group">
                 <h3 class="collapsible-header" onclick="toggleCollapse(this)">👥 캐릭터<span class="toggle-icon">△</span></h3>
                 <div class="collapsible-content" id="characterListContainer">
@@ -169,7 +155,6 @@
                 </div>
             </div>
             
-            <!-- 4. 사담용 캐릭터 -->
             <div class="config-group">
                 <h3 class="collapsible-header" onclick="toggleCollapse(this)">💬 사담용 캐릭터<span class="toggle-icon">△</span></h3>
                 <div class="collapsible-content macro-box">
@@ -249,7 +234,6 @@
             </div>
         </div>
         
-        <!-- 우클릭 컨텍스트 메뉴 -->
         <div id="contextMenu" class="context-menu">
             <div class="context-menu-item" id="ctxDuplicate">카드 복제</div>
             <div class="context-menu-item" id="ctxAddBlank">빈 카드 추가</div>
@@ -259,7 +243,6 @@
     </div>
 
     <script>
-        // --- 상태 및 상수 ---
         let logsData = { main: [], sub: [] };
         let charactersConfig = {}; 
         let registeredTags = []; 
@@ -958,8 +941,8 @@
             if (text.includes('&gt;') || text.includes('＞') || text.includes('&lt;') || text.includes('🎰')) {
                 if (useDiceColor) {
                     const plain = text.replace(/<[^>]*>/g, '');
-                    const greens = ['어려운 성공', '대단한 성공', '극대 성공', '특별 성공', '보통 성공', '대성공', '성공'];
-                    const reds = ['치명적 실패', '대실패', '펌블', '실패'];
+                    const greens = ['어려운 성공', '대단한 성공', '극단적 성공', '보통 성공', '대성공'];
+                    const reds = ['대실패', '보통 실패', '실패'];
                     let matched = false;
                     for (let w of greens) {
                         if (plain.endsWith(w) || plain.includes(w + ' ')) {
@@ -981,7 +964,6 @@
             return `<span class="char-msg-content">${text}</span>`;
         }
 
-        // --- 수정된 generateFinalHTML 함수 ---
         function generateFinalHTML() {
             if (logsData.main.length === 0) { 
                 alert('메인 로그가 없습니다! 화면 중앙에 로그 파일을 먼저 끌어다 놓아주세요.'); 
@@ -1036,10 +1018,8 @@
                 let nameHTML = '';
                 let noNameClass = '';
                 if (!(cur.isForceHidden || isCont)) {
-                    // 인라인 스타일 제거 후 클래스 기반 색상 적용 지원 형태로 변경
                     nameHTML = `<div class="name-row"><b class="char-name-label">${cur.speaker}</b></div>`;
                 } else {
-                    // 이름(캐릭터)이 생략된 카드 표시 - 본문을 세로 중앙정렬하기 위한 마커
                     noNameClass = ' no-name';
                 }
 
