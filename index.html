@@ -1,0 +1,1936 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>연근표 코코포 로그 백업기</title>
+    <style>
+        :root {
+            --bg-color: #1e1e2e;
+            --sidebar-bg: #252538;
+            --box-bg: #2d2d44;
+            --text-color: #cdd6f4;
+            --accent-color: #74c7ec;
+            --border-color: #45475a;
+            --danger-color: #f38ba8;
+            --success-color: #a6e3a1;
+            --selected-bg: #313244;
+        }
+
+        body { font-family: 'Pretendard', sans-serif; margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text-color); display: flex; height: 100vh; overflow: hidden; }
+
+        .container { display: flex; width: 100%; height: 100%; position: relative; }
+
+        .sidebar-left {
+            width: 340px; background: var(--sidebar-bg); border-right: 1px solid var(--border-color);
+            padding: 20px; display: flex; flex-direction: column; gap: 20px;
+            box-sizing: border-box; overflow-y: auto; flex-shrink: 0; transition: width 0.3s, padding 0.3s;
+            position: relative;
+        }
+        .sidebar-left.collapsed { width: 0; padding: 0; overflow: hidden; border: none; }
+        
+        .sidebar-toggle-btn {
+            position: absolute; left: 340px; top: 15px; width: 24px; height: 40px;
+            background: var(--sidebar-bg); border: 1px solid var(--border-color); border-left: none;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            z-index: 100; border-radius: 0 4px 4px 0; transition: left 0.3s; color: var(--text-color);
+            font-size: 12px;
+        }
+        .sidebar-left.collapsed + .sidebar-toggle-btn { left: 0; }
+
+        .workspace { flex: 1; display: flex; height: 100%; overflow: hidden; position: relative; }
+        .main-editor, .sidebar-right { display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; height: 100%; }
+        .main-editor { width: 50%; background: var(--bg-color); }
+        .sidebar-right { flex: 1; background: var(--sidebar-bg); border-left: 1px solid var(--border-color); }
+        .resizer { width: 6px; background: var(--border-color); cursor: col-resize; transition: background 0.2s; z-index: 10; flex-shrink: 0; }
+        .resizer:hover, .resizer.dragging { background: var(--accent-color); }
+
+        .sidebar-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 8px; min-height: 32px; }
+        .sidebar-header h3 { margin: 0; color: var(--accent-color); font-size: 16px; }
+        .header-actions { display: flex; gap: 6px; align-items: center; }
+
+        .collapsible-header { cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; margin: 0; font-size: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; color: var(--accent-color); }
+        .collapsible-header:hover { opacity: 0.8; }
+        .toggle-icon { font-size: 12px; transition: 0.2s; }
+        .collapsible-content { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+        .collapsible-content.hidden { display: none; }
+
+        .config-group { display: flex; flex-direction: column; gap: 8px; font-size: 14px; background: #1e1e2e; padding: 12px; border-radius: 6px; border: 1px solid var(--border-color); }
+        .config-group input[type="text"], .config-group select { background: var(--box-bg); border: 1px solid var(--border-color); color: var(--text-color); padding: 6px 8px; border-radius: 4px; box-sizing: border-box; font-size: 13px; width: 100%; }
+        input[type="text"]:focus, .inline-select:focus, textarea:focus { outline: none; border-color: var(--accent-color) !important; box-shadow: 0 0 0 2px rgba(116, 199, 236, 0.25); }
+        input[type="text"].drag-over { border-color: var(--success-color) !important; background: var(--selected-bg) !important; box-shadow: 0 0 0 2px rgba(166, 227, 161, 0.35); }
+        
+        .macro-box { background: #313244; padding: 10px; border-radius: 6px; display: flex; flex-direction: column; gap: 6px; border: 1px dashed #cba6f7; }
+
+        .tag-color-row, .char-item-row { background: var(--box-bg); border: 1px solid var(--border-color); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 8px;}
+        .tag-color-row { flex-direction: row; align-items: center; justify-content: space-between; cursor: grab; }
+        .tag-color-row:active { cursor: grabbing; }
+        .tag-color-row.dragging { opacity: 0.5; }
+        .tag-color-row span { font-weight: bold; font-size: 14px; word-break: break-all; cursor: text; user-select: none; color: var(--text-color); }
+        
+        .char-header { display: flex; gap: 6px; align-items: center; }
+        .char-header input[type="text"] { flex: 1; }
+        .char-header input[type="color"], .tag-color-row input[type="color"] { width: 35px; height: 28px; padding: 0; border: none; cursor: pointer; background: none; flex-shrink: 0; }
+
+        .char-summary { cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .char-summary-name { font-weight: bold; font-size: 14px; word-break: break-all; }
+        .char-summary .toggle-icon { font-size: 11px; color: #a6adc8; flex-shrink: 0; }
+        .char-details { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+        .char-details.hidden { display: none; }
+        
+        .avatar-list { display: flex; flex-direction: column; gap: 6px; padding-left: 10px; border-left: 2px solid var(--border-color); }
+        .avatar-row { display: flex; gap: 4px; align-items: center; }
+        .avatar-row input.avatar-name { flex: 1.6; min-width: 0; }
+        .avatar-row input.avatar-url { flex: 0.7; min-width: 0; font-size: 11px; color: #7f849c; }
+        .avatar-row input.avatar-url:focus { color: var(--text-color); }
+        .edit-avatar-btn { background: var(--box-bg); border: 1px solid var(--border-color); color: var(--accent-color); cursor: pointer; border-radius: 4px; padding: 5px 7px; font-size: 12px; flex-shrink: 0; line-height: 1; }
+        .edit-avatar-btn:hover { background: var(--border-color); }
+        .del-btn { background: none; border: none; color: var(--danger-color); cursor: pointer; font-weight: bold; padding: 0 4px; flex-shrink: 0; }
+        
+        .search-container { display: none; gap: 4px; margin-bottom: 8px; width: 100%; align-items: center; background: #11111b; padding: 6px; border-radius: 6px; border: 1px solid var(--accent-color); box-sizing: border-box; }
+        .search-container.active { display: flex; }
+        .search-input { flex: 1; padding: 4px 6px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--box-bg); color: #fff; font-size: 13px; }
+        .search-nav-btn { background: var(--box-bg); border: 1px solid var(--border-color); color: #fff; cursor: pointer; border-radius: 4px; padding: 4px 8px; font-size: 11px; }
+        .search-nav-btn:hover { background: var(--border-color); }
+        .search-count { font-size: 12px; color: var(--accent-color); min-width: 45px; text-align: center; }
+
+        .log-container { flex: 1; background: #11111b; border: 2px dashed var(--border-color); border-radius: 8px; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; transition: 0.2s; position: relative; }
+        .log-container.dragover { border-color: var(--accent-color) !important; background: #313244 !important; }
+        .log-container::before { content: "로그 파일을 끌어다 놓으세요."; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #585b70; font-size: 13px; pointer-events: none; }
+        .log-container.has-items::before { display: none; }
+
+        .log-card { background: #212121; border: 1px solid var(--border-color); padding: 12px 14px; border-radius: 6px; cursor: grab; user-select: none; font-size: 14.5px; line-height: 1.65; display: flex; align-items: flex-start; gap: 10px; transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s; }
+        .log-card:active { cursor: grabbing; }
+        .log-card.dragging { opacity: 0.3; border: 1px dashed var(--accent-color); }
+        .log-card:hover:not(.search-highlight) { box-shadow: inset 0 0 0 1px var(--accent-color); }
+        .log-card.search-highlight { border: 2px solid var(--danger-color); box-shadow: 0 0 8px rgba(243, 139, 168, 0.5); }
+        
+        .log-card.selected { background-color: var(--selected-bg) !important; border: 1px solid var(--accent-color); box-shadow: 0 0 5px rgba(116, 199, 236, 0.4); }
+
+        .tab-badge { font-size: 11px; font-weight: bold; padding: 2px 6px; border-radius: 4px; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: #89b4fa; color: #11111b; cursor: pointer; flex-shrink: 0; align-self: flex-start; }
+        .tab-badge:hover { opacity: 0.8; text-decoration: underline; }
+
+        .card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+        .card-header-group { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 2px; }
+        .log-datetime { font-size: 11.5px; color: #9399b2; flex-shrink: 0; }
+        .card-avatar-wrapper { width: 32px; height: 32px; flex-shrink: 0; }
+        .card-avatar { width: 100%; height: 100%; border-radius: 4px; object-fit: cover; object-position: top center; border: 1px solid var(--border-color); background: #45475a; display: none; }
+        .card-avatar.clickable { cursor: pointer; transition: 0.2s; }
+        .card-avatar.clickable:hover { opacity: 0.7; border-color: var(--accent-color); }
+
+        .speaker-name { font-weight: bold; font-size: 14px; cursor: pointer; word-break: break-all; }
+        .speaker-name:hover { opacity: 0.8; text-decoration: underline; }
+        
+        .log-content-wrap { width: 100%; word-break: break-all; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+        .log-content { display: block; color: #e4e6f0; }
+        .log-content.hidden-style { font-weight: bold; font-style: italic; text-align: center; }
+        .log-content .dice-box { display: block; background: #181818; border: 1px solid var(--border-color); border-radius: 4px; padding: 7px 10px; margin-top: 2px; font-size: 13.5px; color: #ccc; width: fit-content; max-width: 100%; word-break: break-all; }
+        .log-content .char-msg-content { display: block; }
+        
+        .inline-select { width: auto; max-width: 130px; font-size: 12px; padding: 2px; background: #11111b; color: #fff; border: 1px solid var(--accent-color); overflow: hidden; text-overflow: ellipsis; }
+        .card-inline-editor { width: 100%; background: #11111b; color: #fff; border: 1px solid var(--accent-color); padding: 4px 6px; font-size: 14px; font-family: inherit; border-radius: 4px; resize: vertical; min-height: 40px; box-sizing: border-box; }
+
+        .action-btn { background: var(--accent-color); color: #11111b; border: none; padding: 8px 12px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.2s; font-size: 13px; width: 100%; box-sizing: border-box; }
+        .action-btn:hover { opacity: 0.9; }
+        .sub-btn { background: #89b4fa; color: #11111b; border: none; padding: 4px 10px; font-size: 12px; font-weight: bold; border-radius: 4px; cursor: pointer; }
+        .sub-btn:hover { opacity: 0.9; }
+        .clear-btn { background: var(--danger-color); color: #11111b; border: none; padding: 4px 10px; font-size: 12px; font-weight: bold; border-radius: 4px; cursor: pointer; }
+        .clear-btn:hover { opacity: 0.9; }
+        .checkbox-label { font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+
+        .context-menu { position: absolute; background: var(--sidebar-bg); border: 1px solid var(--border-color); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 1000; display: none; flex-direction: column; padding: 4px 0; min-width: 150px; }
+        .context-menu-item { padding: 8px 16px; font-size: 13px; cursor: pointer; color: var(--text-color); }
+        .context-menu-item:hover { background: var(--box-bg); color: var(--accent-color); }
+        .context-menu-item.danger:hover { color: var(--danger-color); }
+        
+        .selection-toolbar { display: none; background: var(--selected-bg); border: 1px solid var(--accent-color); padding: 8px 15px; border-radius: 6px; margin-bottom: 8px; align-items: center; justify-content: space-between; font-size: 13px; }
+        .selection-toolbar.active { display: flex; }
+
+        .img-editor-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 2000; align-items: center; justify-content: center; }
+        .img-editor-overlay.active { display: flex; }
+        .img-editor-modal { background: var(--sidebar-bg); border: 1px solid var(--border-color); border-radius: 10px; width: min(720px, 92vw); max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+        .img-editor-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border-color); }
+        .img-editor-head h3 { margin: 0; color: var(--accent-color); font-size: 16px; }
+        .img-editor-close { background: none; border: none; color: var(--text-color); font-size: 18px; cursor: pointer; padding: 2px 6px; }
+        .img-editor-close:hover { color: var(--danger-color); }
+        .img-editor-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px 18px; border-bottom: 1px solid var(--border-color); }
+        .tool-btn { background: var(--box-bg); border: 1px solid var(--border-color); color: var(--text-color); padding: 7px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+        .tool-btn:hover { border-color: var(--accent-color); }
+        .tool-btn.active-tool { background: var(--accent-color); color: #11111b; border-color: var(--accent-color); font-weight: bold; }
+        .tool-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .tool-sep { width: 1px; height: 22px; background: var(--border-color); margin: 0 2px; }
+        .tolerance-wrap { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #a6adc8; }
+        .tolerance-wrap input[type="range"] { width: 90px; }
+        .img-editor-body { flex: 1; overflow: auto; padding: 18px; display: flex; align-items: center; justify-content: center; background: repeating-conic-gradient(#2a2a3d 0% 25%, #23233a 0% 50%) 50% / 20px 20px; min-height: 300px; }
+        .img-editor-canvas-wrap { position: relative; max-width: 100%; max-height: 60vh; line-height: 0; }
+        .img-editor-canvas-wrap canvas { max-width: 100%; max-height: 60vh; display: block; }
+        #imgEditorCanvas { cursor: crosshair; box-shadow: 0 0 0 1px var(--border-color); }
+        #imgGrayOverlay { position: absolute; top: 0; left: 0; pointer-events: none; display: none; filter: grayscale(100%) brightness(0.85); box-shadow: 0 0 0 1px var(--border-color); }
+        .crop-box { position: absolute; border: 2px dashed var(--accent-color); box-sizing: border-box; cursor: move; z-index: 5; }
+        .crop-handle { position: absolute; width: 12px; height: 12px; background: var(--accent-color); border-radius: 50%; right: -6px; bottom: -6px; cursor: nwse-resize; }
+        .img-editor-hint { padding: 0 18px; font-size: 12px; color: #a6adc8; min-height: 18px; }
+        .img-editor-hint.warn { color: var(--danger-color); }
+        .img-editor-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--border-color); }
+        .img-editor-foot button { padding: 8px 16px; font-size: 13px; }
+
+        .lines-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 2000; align-items: center; justify-content: center; }
+        .lines-modal-overlay.active { display: flex; }
+        .lines-modal { background: var(--sidebar-bg); border: 1px solid var(--border-color); border-radius: 10px; width: min(600px, 92vw); max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+        .lines-modal-body { flex: 1; overflow-y: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
+        .lines-modal-body .log-card.line-log-item { cursor: default; }
+        .lines-modal-body .log-card.line-log-item:active { cursor: default; }
+        .lines-modal-body .log-card.line-log-item:hover { box-shadow: none; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="sidebar-left" id="sidebarLeft">
+            <div class="config-group" style="background: none; border: none; padding: 0;">
+                <h3 style="margin:0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; color: var(--accent-color);">기본 설정</h3>
+                <input type="text" id="sessionTitle" value="" placeholder="세션명 입력">
+                <input type="text" id="sessionLink" value="" placeholder="링크 주소 입력 (선택)">
+                <label class="checkbox-label"><input type="checkbox" id="hideContinuousName" checked> 연속 발언 시 이름 생략</label>
+                <label class="checkbox-label"><input type="checkbox" id="enableColoringDice" checked> 판정 결과 색상 강조</label>
+                <label class="checkbox-label"><input type="checkbox" id="collapseOtherOnStart" checked> 잡담(기타) 탭 접어서 시작</label>
+            </div>
+
+            <div class="config-group">
+                <h3 class="collapsible-header" onclick="toggleCollapse(this)">🏷️ 탭<span class="toggle-icon">△</span></h3>
+                <div id="tagColorContainer" class="collapsible-content">
+                </div>
+            </div>
+
+            <div class="config-group">
+                <h3 class="collapsible-header" onclick="toggleCollapse(this)">👥 캐릭터<span class="toggle-icon">△</span></h3>
+                <div class="collapsible-content" id="characterListContainer">
+                </div>
+            </div>
+            
+            <div class="config-group">
+                <h3 class="collapsible-header" onclick="toggleCollapse(this)">💬 사담 저널<span class="toggle-icon">△</span></h3>
+                <div class="collapsible-content macro-box">
+                    <span style="font-size: 12px; color: #a6adc8;">잡담탭의 캐릭터를 사담 저널로 일괄 변환합니다.</span>
+                    <input type="text" id="macroChatName" placeholder="사담용 캐릭터 이름 (예: 연근)">
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <input type="color" id="macroChatColor" value="#cccccc" style="width: 40px; height: 30px; border:none; padding:0; background:none;">
+                        <span style="font-size:12px;">이름 색상</span>
+                    </div>
+                    <input type="text" id="macroChatAvatar" placeholder="두상 이미지 주소 (URL)">
+                    <input type="text" id="macroTargetChars" placeholder="변경할 대상 (예: GM, KPC, NPC)">
+                    <button class="action-btn" id="applyMacroBtn" style="background: #cba6f7;">적용하기</button>
+                </div>
+            </div>
+
+            <div style="margin-top: auto; display: flex; flex-direction: column; gap: 8px;">
+                <button class="action-btn" id="copyBtn" style="background:#f9e2af; padding: 12px; font-size: 15px;">📋 클립보드에 복사</button>
+                <button class="action-btn" id="saveBtn" style="background:var(--success-color); padding: 12px; font-size: 15px;">💾 변환 파일 다운로드</button>
+            </div>
+        </div>
+        
+        <div class="sidebar-toggle-btn" id="sidebarToggle" title="설정창 접기/펴기">◀</div>
+
+        <div class="workspace" id="workspace">
+            <div class="main-editor" id="mainEditor">
+                <div class="sidebar-header">
+                    <h3>📝 메인 로그</h3>
+                    <div class="header-actions">
+                        <button class="sub-btn" id="mainSortTimeBtn" title="날짜/시간 정보가 있는 로그를 시간순으로 정렬합니다">시간순 정렬</button>
+                        <button class="sub-btn" id="moveMainToSubBtn" title="메인 로그 전체를 서브 로그 하단으로 이동합니다">빼내기</button>
+                        <button class="clear-btn" id="clearMainLogBtn">비우기</button>
+                    </div>
+                </div>
+                
+                <div class="selection-toolbar" id="mainSelectionToolbar">
+                    <span><strong id="mainSelectCount">0</strong>개 선택됨</span>
+                    <div style="display:flex; gap:6px;">
+                        <button class="sub-btn" id="mainBatchImageBtn">이미지 일괄변경</button>
+                        <button class="clear-btn" id="mainBatchDelBtn">일괄 삭제</button>
+                    </div>
+                </div>
+
+                <div class="search-container" id="mainSearchContainer">
+                    <input type="text" class="search-input" id="mainSearchInput" placeholder="대사 검색...">
+                    <span class="search-count" id="mainSearchCount">0/0</span>
+                    <button class="search-nav-btn" onclick="navigateSearch('main', -1)">▲</button>
+                    <button class="search-nav-btn" onclick="navigateSearch('main', 1)">▼</button>
+                </div>
+                <div class="log-container" id="mainLogContainer" data-type="main"></div>
+            </div>
+
+            <div class="resizer" id="resizer"></div>
+
+            <div class="sidebar-right" id="sidebarRight">
+                <div class="sidebar-header">
+                    <h3>📥 서브 로그</h3>
+                    <div class="header-actions">
+                        <button class="sub-btn" id="subSortTimeBtn" title="날짜/시간 정보가 있는 로그를 시간순으로 정렬합니다">시간순 정렬</button>
+                        <button class="sub-btn" id="mergeBtn">합치기</button>
+                        <button class="clear-btn" id="clearSubLogBtn">비우기</button>
+                    </div>
+                </div>
+                
+                <div class="selection-toolbar" id="subSelectionToolbar">
+                    <span><strong id="subSelectCount">0</strong>개 선택됨</span>
+                    <div style="display:flex; gap:6px;">
+                        <button class="sub-btn" id="subBatchImageBtn">이미지 일괄변경</button>
+                        <button class="clear-btn" id="subBatchDelBtn">일괄 삭제</button>
+                    </div>
+                </div>
+
+                <div class="search-container" id="subSearchContainer">
+                    <input type="text" class="search-input" id="subSearchInput" placeholder="대사 검색...">
+                    <span class="search-count" id="subSearchCount">0/0</span>
+                    <button class="search-nav-btn" onclick="navigateSearch('sub', -1)">▲</button>
+                    <button class="search-nav-btn" onclick="navigateSearch('sub', 1)">▼</button>
+                </div>
+                <div class="log-container" id="subLogContainer" data-type="sub"></div>
+            </div>
+        </div>
+        
+        <div id="contextMenu" class="context-menu">
+            <div class="context-menu-item" id="ctxAddBlank">빈 카드 추가</div>
+            <div class="context-menu-item danger" id="ctxDelAbove">위로 전체 삭제</div>
+            <div class="context-menu-item danger" id="ctxDelBelow">아래로 전체 삭제</div>
+        </div>
+    </div>
+
+    <div class="img-editor-overlay" id="imgEditorOverlay">
+        <div class="img-editor-modal">
+            <div class="img-editor-head">
+                <h3>🖼️ 이미지 편집</h3>
+                <button class="img-editor-close" id="imgEditorCloseBtn">✕</button>
+            </div>
+            <div class="img-editor-toolbar">
+                <button class="tool-btn" id="imgToolCrop">✂️ 자르기</button>
+                <button class="tool-btn" id="imgToolErase">🧹 배경 지우기</button>
+                <span class="tolerance-wrap" id="eraseToleranceWrap" style="display:none;">
+                    허용 오차 <input type="range" id="eraseTolerance" min="0" max="120" value="30"><span id="eraseToleranceVal">30</span>
+                </span>
+                <button class="tool-btn" id="imgCropApplyBtn" style="display:none;">자르기 적용</button>
+                <div class="tool-sep"></div>
+                <button class="tool-btn" id="imgUndoBtn">↩️ 실행취소</button>
+                <button class="tool-btn" id="imgResetBtn">🔄 수정 초기화</button>
+            </div>
+            <div class="img-editor-hint" id="imgEditorHint">이미지를 불러오는 중...</div>
+            <div class="img-editor-body">
+                <div class="img-editor-canvas-wrap" id="imgCanvasWrap">
+                    <canvas id="imgEditorCanvas"></canvas>
+                    <canvas id="imgGrayOverlay"></canvas>
+                </div>
+            </div>
+            <div class="img-editor-foot">
+                <button class="sub-btn" id="imgEditorCancelBtn">취소</button>
+                <button class="action-btn" id="imgEditorSaveBtn" style="width:auto; background: var(--success-color);">✅ 적용하고 저장</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="lines-modal-overlay" id="charLinesOverlay">
+        <div class="lines-modal">
+            <div class="img-editor-head">
+                <h3 id="charLinesTitle">📜 대사 모아보기</h3>
+                <button class="img-editor-close" id="charLinesCloseBtn">✕</button>
+            </div>
+            <div class="lines-modal-body" id="charLinesBody"></div>
+        </div>
+    </div>
+
+    <script>
+        let logsData = { main: [], sub: [] };
+        let charactersConfig = {}; 
+        let registeredTags = []; 
+        let tagColorMap = {};
+        let expandedChars = new Set();
+        
+        const CHUNK_SIZE = 30;
+        let visibleCounts = { main: CHUNK_SIZE, sub: CHUNK_SIZE };
+
+        let searchStates = { main: { query: '', results: [], index: -1 }, sub: { query: '', results: [], index: -1 } };
+
+        let selectedCards = { main: new Set(), sub: new Set() };
+        let selectionSpeaker = { main: null, sub: null };
+
+        let undoStack = [], redoStack = [], isRestoring = false;
+
+        const mainLogContainer = document.getElementById('mainLogContainer');
+        const subLogContainer = document.getElementById('subLogContainer');
+        const characterListContainer = document.getElementById('characterListContainer');
+        const ctxMenu = document.getElementById('contextMenu');
+        let ctxTargetId = null; let ctxTargetType = null;
+
+        function showContextMenu(x, y) {
+            ctxMenu.style.display = 'flex';
+            ctxMenu.style.left = `${x}px`;
+            ctxMenu.style.top = `${y}px`;
+
+            const menuRect = ctxMenu.getBoundingClientRect();
+            const viewportRight = window.scrollX + window.innerWidth;
+            const viewportBottom = window.scrollY + window.innerHeight;
+
+            if (menuRect.right > viewportRight) {
+                ctxMenu.style.left = `${Math.max(0, viewportRight - menuRect.width)}px`;
+            }
+            if (menuRect.bottom > viewportBottom) {
+                ctxMenu.style.top = `${Math.max(0, viewportBottom - menuRect.height)}px`;
+            }
+        }
+
+        function sortByTime(type) {
+            const withTime = logsData[type].filter(l => l.datetime);
+            if (withTime.length === 0) { alert('날짜/시간 정보가 있는 로그가 없습니다.'); return; }
+            logsData[type].sort((a, b) => {
+                if (!a.datetime && !b.datetime) return 0;
+                if (!a.datetime) return 1;
+                if (!b.datetime) return -1;
+                return new Date(a.datetime) - new Date(b.datetime);
+            });
+            saveState(); renderAll();
+        }
+        document.getElementById('mainSortTimeBtn').addEventListener('click', () => sortByTime('main'));
+        document.getElementById('subSortTimeBtn').addEventListener('click', () => sortByTime('sub'));
+
+        function generateId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
+        function isMiscTagName(tab) { const t = (tab || '').toLowerCase(); return t === 'other' || t === '잡담'; }
+
+        function enableImageDropOnInput(inputEl, onFileLoaded) {
+            inputEl.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                inputEl.classList.add('drag-over');
+            });
+            inputEl.addEventListener('dragleave', () => { inputEl.classList.remove('drag-over'); });
+            inputEl.addEventListener('drop', (e) => {
+                e.preventDefault();
+                inputEl.classList.remove('drag-over');
+                const file = e.dataTransfer.files && e.dataTransfer.files[0];
+                if (!file) return;
+                if (!file.type.startsWith('image/')) { alert('이미지 파일만 업로드할 수 있습니다.'); return; }
+                const reader = new FileReader();
+                reader.onload = (ev) => onFileLoaded(ev.target.result);
+                reader.onerror = () => alert('파일을 읽는 중 오류가 발생했습니다.');
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function resolveSpeakerInitialColors(entries) {
+            const firstColor = {}; const override = {};
+            entries.forEach(({ speaker, color }) => {
+                if (!speaker || speaker === '시스템' || !color) return;
+                if (!(speaker in firstColor)) firstColor[speaker] = color;
+            });
+            entries.forEach(({ speaker, color }) => {
+                if (!speaker || speaker === '시스템' || !color) return;
+                if (firstColor[speaker] && firstColor[speaker].toLowerCase() === '#888888' &&
+                    color.toLowerCase() !== '#888888' && !(speaker in override)) {
+                    override[speaker] = color;
+                }
+            });
+            return override;
+        }
+
+        window.toggleCollapse = function(header) {
+            const content = header.nextElementSibling;
+            const icon = header.querySelector('.toggle-icon');
+            content.classList.toggle('hidden');
+            icon.textContent = content.classList.contains('hidden') ? '▽' : '△';
+        };
+
+        document.getElementById('sidebarToggle').addEventListener('click', (e) => {
+            const sidebar = document.getElementById('sidebarLeft');
+            sidebar.classList.toggle('collapsed');
+            e.target.textContent = sidebar.classList.contains('collapsed') ? '▶' : '◀';
+        });
+
+        function saveState() {
+            if (isRestoring) return;
+            const state = JSON.stringify({ logs: logsData, chars: charactersConfig, tags: registeredTags, tagColors: tagColorMap });
+            if (undoStack.length === 0 || undoStack[undoStack.length - 1] !== state) {
+                undoStack.push(state);
+                if (undoStack.length > 30) undoStack.shift();
+                redoStack = [];
+            }
+        }
+        function restoreState(stateStr) {
+            isRestoring = true;
+            const state = JSON.parse(stateStr);
+            logsData = state.logs; charactersConfig = state.chars; 
+            registeredTags = state.tags || []; tagColorMap = state.tagColors || {};
+            syncTagsFromData(); renderTagList(); renderCharacterConfigUI(); 
+            clearSelection('main'); clearSelection('sub'); renderAll();
+            isRestoring = false;
+        }
+        function undo() { if (undoStack.length > 1) { redoStack.push(undoStack.pop()); restoreState(undoStack[undoStack.length - 1]); } }
+        function redo() { if (redoStack.length > 0) { const state = redoStack.pop(); undoStack.push(state); restoreState(state); } }
+
+        function parseMarkdown(text) {
+            let res = text.replace(/\*\*\*(.*?)\*\*\*/g, '<b><i>$1</i></b>');
+            res = res.replace(/\*\*(.*?)\*\*/g, '<i>$1</i>');
+            return res.replace(/\*(.*?)\*/g, '<b>$1</b>');
+        }
+        function stripBrAndSpaces(text) { return text.replace(/^(?:<br\s*\/?>|\s)+|(?:<br\s*\/?>|\s)+$/gi, ''); }
+
+        function registerTag(tagName) {
+            if (!tagName) return;
+            tagName = tagName.trim();
+            if (!tagName) return;
+            if (registeredTags.some(t => t.trim().toLowerCase() === tagName.toLowerCase())) return;
+            const tagPriority = { 'main': 0, 'info': 1, '잡담': 2, 'other': 3 };
+            const newIdx = tagPriority[tagName.toLowerCase()];
+            if (newIdx === undefined) {
+                registeredTags.push(tagName);
+            } else {
+                let insertAt = 0;
+                for (let i = 0; i < registeredTags.length; i++) {
+                    const existingIdx = tagPriority[registeredTags[i].toLowerCase()];
+                    if (existingIdx !== undefined && existingIdx <= newIdx) insertAt = i + 1;
+                    else break;
+                }
+                registeredTags.splice(insertAt, 0, tagName);
+            }
+            if (!tagColorMap[tagName]) tagColorMap[tagName] = (tagName.toLowerCase() === 'other' || tagName.toLowerCase() === '잡담') ? '#424242' : '#212121';
+        }
+
+        function sortRegisteredTagsByDefaultOrder() {
+            const tagPriority = { 'main': 0, 'info': 1, '잡담': 2, 'other': 3 };
+            registeredTags = [...registeredTags].sort((a, b) => {
+                const ai = tagPriority[a.toLowerCase()]; const bi = tagPriority[b.toLowerCase()];
+                const av = ai === undefined ? 99 : ai; const bv = bi === undefined ? 99 : bi;
+                return av - bv;
+            });
+        }
+
+        function renderTagList() {
+            const container = document.getElementById('tagColorContainer');
+            container.innerHTML = '<span style="font-size: 11px; color:#a6adc8;">드래그 앤 드롭으로 순서 변경 가능</span>';
+
+            registeredTags.forEach(tagName => {
+                const row = document.createElement('div'); row.className = 'tag-color-row'; row.dataset.tag = tagName; row.draggable = true;
+                row.innerHTML = `
+                    <span>[${tagName}]</span>
+                    <div style="display:flex; gap:6px; align-items:center;">
+                        <input type="color" value="${tagColorMap[tagName]}">
+                        <button class="sub-btn tag-separate-btn" title="이 탭의 모든 로그를 서브 로그로 이동" style="padding:4px 8px; font-size:11px;">빼내기</button>
+                        <button class="del-btn tag-delete-btn" title="이 탭의 로그 삭제">X</button>
+                    </div>
+                `;
+                
+                row.querySelector('span').addEventListener('dblclick', () => {
+                    const newTag = prompt('새로운 탭 이름:', tagName);
+                    if (newTag && newTag.trim() && tagName !== newTag.trim()) {
+                        const cleanTag = newTag.trim();
+                        const idx = registeredTags.indexOf(tagName);
+                        registeredTags[idx] = cleanTag;
+                        tagColorMap[cleanTag] = tagColorMap[tagName]; delete tagColorMap[tagName];
+                        ['main', 'sub'].forEach(t => logsData[t].forEach(l => { if (l.tab === tagName) l.tab = cleanTag; }));
+                        saveState(); renderTagList(); renderAll();
+                    }
+                });
+
+                const colorInput = row.querySelector('input');
+                colorInput.addEventListener('input', (e) => { tagColorMap[tagName] = e.target.value; renderAll(); });
+                colorInput.addEventListener('change', () => saveState());
+
+                row.querySelector('.tag-separate-btn').addEventListener('click', (e) => { e.stopPropagation(); separateTagToSub(tagName); });
+                row.querySelector('.tag-delete-btn').addEventListener('click', (e) => { e.stopPropagation(); deleteTagLogs(tagName); });
+
+                row.addEventListener('dragstart', (e) => { e.stopPropagation(); row.classList.add('dragging'); e.dataTransfer.setData('tag', tagName); });
+                row.addEventListener('dragend', () => row.classList.remove('dragging'));
+                container.appendChild(row);
+            });
+
+            if (!container.dataset.dndBound) {
+                container.dataset.dndBound = '1';
+                container.addEventListener('dragover', e => { e.preventDefault(); });
+                container.addEventListener('drop', e => {
+                    e.preventDefault(); e.stopPropagation();
+                    const draggedTag = e.dataTransfer.getData('tag'); if (!draggedTag) return;
+                    const draggingRow = container.querySelector('.tag-color-row.dragging'); if(!draggingRow) return;
+                    
+                    const siblings = [...container.querySelectorAll('.tag-color-row:not(.dragging)')];
+                    const nextSibling = siblings.find(sib => {
+                        const box = sib.getBoundingClientRect();
+                        return e.clientY <= box.top + box.height / 2;
+                    });
+                    
+                    if (nextSibling) container.insertBefore(draggingRow, nextSibling);
+                    else container.appendChild(draggingRow);
+                    
+                    const newOrder = [...container.querySelectorAll('.tag-color-row')].map(el => el.dataset.tag);
+                    registeredTags = newOrder;
+                    saveState();
+                });
+            }
+        }
+
+        function syncTagsFromData() {
+            const activeTags = new Set();
+            ['main', 'sub'].forEach(t => logsData[t].forEach(l => activeTags.add(l.tab)));
+            activeTags.forEach(tag => registerTag(tag));
+            registeredTags = registeredTags.filter(tag => activeTags.has(tag));
+            renderTagList();
+        }
+
+        function renderCharacterConfigUI() {
+            characterListContainer.innerHTML = '';
+            Object.keys(charactersConfig).forEach(charName => {
+                const cfg = charactersConfig[charName];
+                const charRow = document.createElement('div'); charRow.className = 'char-item-row';
+                const isExpanded = expandedChars.has(charName);
+
+                let headerHTML = `
+                    <div class="char-summary">
+                        <span class="char-summary-name" style="color:${cfg.color};">${charName}</span>
+                        <span class="toggle-icon">${isExpanded ? '△' : '▽'}</span>
+                    </div>
+                    <div class="char-details${isExpanded ? '' : ' hidden'}">
+                        <div class="char-header">
+                            <input type="text" class="char-name-edit" value="${charName}" title="이름 수정 가능">
+                            <input type="color" class="char-color-edit" value="${cfg.color}">
+                            <label class="checkbox-label"><input type="checkbox" class="char-hide-edit" ${cfg.hide ? 'checked' : ''}> 나레이션</label>
+                        </div>
+                        <div style="display:flex; gap:6px;">
+                            <button class="sub-btn char-lines-btn" style="flex:1;" title="이 캐릭터의 대사만 모아보기">📜 대사 모아보기</button>
+                            <button class="clear-btn char-delete-btn" title="캐릭터 삭제">캐릭터 삭제</button>
+                        </div>
+                        <div class="avatar-list">
+                `;
+                
+                cfg.avatars.forEach((av, idx) => {
+                    headerHTML += `
+                        <div class="avatar-row" data-idx="${idx}">
+                            <input type="text" class="avatar-name inline-select" value="${av.name}" placeholder="이미지명">
+                            <input type="text" class="avatar-url inline-select" value="${av.url}" placeholder="URL / 파일 드롭" title="${av.url ? av.url.replace(/"/g, '&quot;') : ''}">
+                            <button class="edit-avatar-btn edit-avatar-btn-open" title="이미지 편집 (자르기 / 배경 지우기)">✏️</button>
+                            <button class="del-btn remove-avatar-btn">X</button>
+                        </div>
+                    `;
+                });
+                
+                headerHTML += `</div><button class="sub-btn add-avatar-btn" style="width:100%; margin-top:4px;">+ 이미지 추가</button></div>`;
+                charRow.innerHTML = headerHTML;
+
+                charRow.querySelector('.char-summary').addEventListener('click', () => {
+                    if (expandedChars.has(charName)) expandedChars.delete(charName); else expandedChars.add(charName);
+                    renderCharacterConfigUI();
+                });
+
+                const nameInput = charRow.querySelector('.char-name-edit');
+                nameInput.addEventListener('change', (e) => {
+                    const newName = e.target.value.trim();
+                    if (!newName || newName === charName) { e.target.value = charName; return; }
+                    if (charactersConfig[newName]) { alert('이미 존재하는 캐릭터 이름입니다.'); e.target.value = charName; return; }
+                    
+                    charactersConfig[newName] = charactersConfig[charName];
+                    delete charactersConfig[charName];
+                    if (expandedChars.has(charName)) { expandedChars.delete(charName); expandedChars.add(newName); }
+                    ['main', 'sub'].forEach(t => logsData[t].forEach(l => { if (l.speaker === charName) l.speaker = newName; }));
+                    saveState(); renderCharacterConfigUI(); renderAll();
+                });
+
+                const charColorInput = charRow.querySelector('.char-color-edit');
+                charColorInput.addEventListener('input', (e) => { cfg.color = e.target.value; charRow.querySelector('.char-summary-name').style.color = e.target.value; renderAll(); });
+                charColorInput.addEventListener('change', () => { saveState(); });
+
+                charRow.querySelector('.char-hide-edit').addEventListener('change', (e) => { cfg.hide = e.target.checked; saveState(); renderAll(); });
+
+                charRow.querySelector('.char-lines-btn').addEventListener('click', () => openCharLinesModal(charName));
+                charRow.querySelector('.char-delete-btn').addEventListener('click', () => {
+                    if (!confirm(`[${charName}] 캐릭터를 삭제하시겠습니까?\n(기존 로그의 대사 자체는 삭제되지 않습니다)`)) return;
+                    delete charactersConfig[charName];
+                    expandedChars.delete(charName);
+                    saveState(); renderCharacterConfigUI(); renderAll();
+                });
+
+                charRow.querySelector('.add-avatar-btn').addEventListener('click', () => {
+                    cfg.avatars.push({ name: `이미지${cfg.avatars.length+1}`, url: '' });
+                    expandedChars.add(charName);
+                    saveState(); renderCharacterConfigUI();
+                });
+                
+                charRow.querySelectorAll('.avatar-row').forEach(row => {
+                    const idx = row.dataset.idx;
+                    const urlInput = row.querySelector('.avatar-url');
+                    row.querySelector('.avatar-name').addEventListener('change', (e) => { cfg.avatars[idx].name = e.target.value; saveState(); renderAll(); });
+                    urlInput.addEventListener('change', (e) => { cfg.avatars[idx].url = e.target.value; e.target.title = e.target.value; saveState(); renderAll(); });
+                    enableImageDropOnInput(urlInput, (dataUrl) => {
+                        urlInput.value = dataUrl;
+                        urlInput.title = dataUrl;
+                        cfg.avatars[idx].url = dataUrl;
+                        saveState(); renderAll();
+                    });
+                    row.querySelector('.edit-avatar-btn-open').addEventListener('click', () => {
+                        openImageEditor(charName, idx);
+                    });
+                    row.querySelector('.remove-avatar-btn').addEventListener('click', () => {
+                        if (cfg.avatars.length <= 1) return alert('최소 1개의 이미지는 존재해야 합니다.');
+                        cfg.avatars.splice(idx, 1); expandedChars.add(charName); saveState(); renderCharacterConfigUI(); renderAll();
+                    });
+                });
+                characterListContainer.appendChild(charRow);
+            });
+
+            const addCharBtn = document.createElement('button');
+            addCharBtn.className = 'sub-btn'; addCharBtn.style.width = '100%'; addCharBtn.style.marginTop = '4px';
+            addCharBtn.textContent = '+ 캐릭터 추가';
+            addCharBtn.addEventListener('click', () => {
+                let name = prompt('추가할 캐릭터의 이름을 입력하세요.');
+                if (name === null) return;
+                name = name.trim();
+                if (!name) return;
+                if (charactersConfig[name]) { alert('이미 존재하는 캐릭터 이름입니다.'); return; }
+                charactersConfig[name] = { color: '#888888', hide: false, avatars: [{ name: '기본', url: '' }] };
+                expandedChars.add(name);
+                saveState(); renderCharacterConfigUI();
+            });
+            characterListContainer.appendChild(addCharBtn);
+        }
+
+        const charLinesOverlay = document.getElementById('charLinesOverlay');
+        const charLinesBody = document.getElementById('charLinesBody');
+        const charLinesTitle = document.getElementById('charLinesTitle');
+        function openCharLinesModal(charName) {
+            charLinesTitle.textContent = `📜 ${charName} 대사 모아보기`;
+            const lines = [
+                ...logsData.main.map(l => ({ log: l, type: 'main', origin: '메인' })),
+                ...logsData.sub.map(l => ({ log: l, type: 'sub', origin: '서브' }))
+            ].filter(x => x.log.speaker === charName);
+
+            charLinesBody.innerHTML = '';
+            if (lines.length === 0) {
+                charLinesBody.innerHTML = '<span style="color:#a6adc8; font-size:13px;">해당 캐릭터의 대사가 없습니다.</span>';
+            } else {
+                lines.forEach(({ log, type, origin }) => {
+                    charLinesBody.appendChild(createCharLineCardDOM(log, type, origin, charName));
+                });
+            }
+            charLinesOverlay.classList.add('active');
+        }
+
+        function createCharLineCardDOM(log, type, origin, charName) {
+            const card = document.createElement('div');
+            card.className = 'log-card line-log-item'; card.dataset.id = log.id;
+            if (tagColorMap[log.tab]) card.style.backgroundColor = tagColorMap[log.tab];
+
+            const targetCfg = charactersConfig[log.speaker];
+            const effectiveHide = !!(targetCfg && targetCfg.hide && !isMiscTagName(log.tab));
+            let hiddenStyleClass = effectiveHide ? ' hidden-style' : '';
+
+            let displayAvatarUrl = ''; let hasAvatar = false;
+            if (targetCfg && targetCfg.avatars && targetCfg.avatars.length > 0) {
+                hasAvatar = true;
+                const savedAvatar = targetCfg.avatars.find(a => a.name === log.avatarName);
+                displayAvatarUrl = savedAvatar ? savedAvatar.url : targetCfg.avatars[0].url;
+            }
+            let avatarStyle = displayAvatarUrl ? 'display:block;' : '';
+
+            card.innerHTML = `
+                <span class="tab-badge" title="탭 변경">[${log.tab}]</span>
+                <div class="card-avatar-wrapper">
+                    <img class="card-avatar ${hasAvatar && targetCfg.avatars.length > 1 ? 'clickable' : ''}" src="${displayAvatarUrl}" ${avatarStyle ? `style="${avatarStyle}"` : ''} title="이미지 변경">
+                </div>
+                <div class="card-body">
+                    <div class="card-header-group">
+                        <span class="log-datetime">${origin}${log.dateText ? ' · ' + log.dateText : ''}</span>
+                    </div>
+                    <div class="log-content-wrap">
+                        <span class="log-content${hiddenStyleClass}">${processDiceMessage(parseMarkdown(log.rawContent), true)}</span>
+                    </div>
+                </div>
+            `;
+
+            const badge = card.querySelector('.tab-badge');
+            badge.addEventListener('click', (e) => {
+                e.stopPropagation(); if (card.querySelector('select')) return;
+                const select = document.createElement('select'); select.className = 'inline-select';
+                registeredTags.forEach(t => {
+                    const opt = document.createElement('option'); opt.value = t; opt.textContent = `[${t}]`;
+                    if (t === log.tab) opt.selected = true; select.appendChild(opt);
+                });
+                badge.style.display = 'none'; badge.insertAdjacentElement('afterend', select); select.focus();
+                const finish = () => {
+                    log.tab = select.value;
+                    saveState(); syncTagsFromData(); renderAll();
+                    openCharLinesModal(charName);
+                };
+                select.addEventListener('blur', finish); select.addEventListener('change', finish);
+            });
+
+            const avatarImg = card.querySelector('.card-avatar');
+            if (hasAvatar && targetCfg.avatars.length > 1) {
+                avatarImg.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (card.querySelector('.avatar-select')) return;
+                    const select = document.createElement('select'); select.className = 'inline-select avatar-select';
+                    targetCfg.avatars.forEach(a => {
+                        const opt = document.createElement('option'); opt.value = a.name; opt.textContent = a.name;
+                        if (a.name === (log.avatarName || targetCfg.avatars[0].name)) opt.selected = true;
+                        select.appendChild(opt);
+                    });
+                    avatarImg.style.display = 'none'; card.querySelector('.card-avatar-wrapper').appendChild(select); select.focus();
+                    const finish = () => {
+                        log.avatarName = select.value;
+                        saveState(); renderAll();
+                        openCharLinesModal(charName);
+                    };
+                    select.addEventListener('blur', finish); select.addEventListener('change', finish);
+                });
+            }
+
+            const contentSpan = card.querySelector('.log-content');
+            contentSpan.addEventListener('dblclick', (e) => {
+                e.stopPropagation(); if (card.querySelector('.card-inline-editor')) return;
+                const textarea = document.createElement('textarea'); textarea.className = 'card-inline-editor';
+                textarea.value = log.rawContent; contentSpan.style.display = 'none';
+                card.querySelector('.log-content-wrap').appendChild(textarea); textarea.focus();
+
+                const finish = () => {
+                    let text = textarea.value;
+                    const atIndex = text.indexOf('@');
+                    if (atIndex !== -1 && targetCfg && targetCfg.avatars) {
+                        const imgName = text.substring(atIndex + 1).trim();
+                        const matched = targetCfg.avatars.find(a => a.name === imgName);
+                        if (matched) {
+                            log.avatarName = matched.name;
+                            text = text.substring(0, atIndex).trim();
+                        }
+                    }
+
+                    let cleaned = stripBrAndSpaces(text);
+                    if (!cleaned) {
+                        if (confirm('대사가 비어있어 해당 카드가 삭제됩니다. 진행하시겠습니까?')) {
+                            logsData[type] = logsData[type].filter(l => l.id !== log.id);
+                        }
+                    } else { log.rawContent = cleaned; }
+                    saveState(); renderAll();
+                    openCharLinesModal(charName);
+                };
+                textarea.addEventListener('blur', finish);
+                textarea.addEventListener('keydown', (evt) => {
+                    if (evt.ctrlKey || evt.metaKey) {
+                        if (evt.key.toLowerCase() === 'b') { evt.preventDefault(); toggleWrap(textarea, '*'); }
+                        else if (evt.key.toLowerCase() === 'i') { evt.preventDefault(); toggleWrap(textarea, '**'); }
+                    } else if (evt.key === 'Enter' && !evt.shiftKey) { evt.preventDefault(); textarea.blur(); }
+                });
+            });
+
+            return card;
+        }
+        document.getElementById('charLinesCloseBtn').addEventListener('click', () => charLinesOverlay.classList.remove('active'));
+        charLinesOverlay.addEventListener('click', (e) => { if (e.target === charLinesOverlay) charLinesOverlay.classList.remove('active'); });
+
+        const imgEditorOverlay = document.getElementById('imgEditorOverlay');
+        const imgEditorCanvas = document.getElementById('imgEditorCanvas');
+        const imgEditorCtx = imgEditorCanvas.getContext('2d', { willReadFrequently: true });
+        const imgCanvasWrap = document.getElementById('imgCanvasWrap');
+        const imgGrayOverlay = document.getElementById('imgGrayOverlay');
+        const imgGrayOverlayCtx = imgGrayOverlay.getContext('2d');
+        const imgEditorHint = document.getElementById('imgEditorHint');
+        const eraseToleranceWrap = document.getElementById('eraseToleranceWrap');
+        const eraseToleranceInput = document.getElementById('eraseTolerance');
+        const eraseToleranceVal = document.getElementById('eraseToleranceVal');
+        const imgCropApplyBtn = document.getElementById('imgCropApplyBtn');
+        const imgToolCrop = document.getElementById('imgToolCrop');
+        const imgToolErase = document.getElementById('imgToolErase');
+
+        let imgEditorCtxState = null; // { charName, idx }
+        let imgEditorTool = null; // 'crop' | 'erase'
+        let imgEditorHistory = [];
+        let imgOriginalSrc = null;
+        let canvasTainted = false;
+        let cropBoxEl = null;
+        let cropDrag = null;
+
+        function openImageEditor(charName, idx) {
+            const cfg = charactersConfig[charName];
+            const av = cfg.avatars[idx];
+            if (!av.url) { alert('먼저 이미지 URL을 입력해주세요.'); return; }
+            imgEditorCtxState = { charName, idx };
+            imgEditorTool = null;
+            imgEditorHistory = [];
+            canvasTainted = false;
+            imgOriginalSrc = av.url;
+            setEditorHint('이미지를 불러오는 중...', false);
+            removeCropBox();
+            eraseToleranceWrap.style.display = 'none';
+            imgCropApplyBtn.style.display = 'none';
+            imgToolCrop.classList.remove('active-tool');
+            imgToolErase.classList.remove('active-tool');
+            imgToolCrop.disabled = false; imgToolErase.disabled = false;
+            imgEditorOverlay.classList.add('active');
+            loadImageIntoEditor(av.url);
+        }
+
+        function setEditorHint(msg, warn) {
+            imgEditorHint.textContent = msg;
+            imgEditorHint.classList.toggle('warn', !!warn);
+        }
+
+        function loadImageIntoEditor(url) {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                imgEditorCanvas.width = img.naturalWidth;
+                imgEditorCanvas.height = img.naturalHeight;
+                imgEditorCtx.clearRect(0, 0, imgEditorCanvas.width, imgEditorCanvas.height);
+                imgEditorCtx.drawImage(img, 0, 0);
+                syncOverlayResolution();
+                fitCanvasDisplaySize();
+                checkTaint();
+                imgToolCrop.disabled = canvasTainted;
+                imgToolErase.disabled = canvasTainted;
+                setEditorHint(canvasTainted ? '⚠️ 이 이미지는 외부 사이트 정책(CORS)으로 인해 편집할 수 없습니다. 다운로드 후 재업로드 가능한 이미지 호스팅을 이용해주세요.' : '도구를 선택한 뒤 이미지를 클릭/드래그해 편집하세요.', canvasTainted);
+            };
+            img.onerror = () => {
+                setEditorHint('⚠️ 이미지를 불러올 수 없습니다. URL을 확인해주세요.', true);
+                imgToolCrop.disabled = true;
+                imgToolErase.disabled = true;
+            };
+            img.src = url;
+        }
+
+        function checkTaint() {
+            try { imgEditorCtx.getImageData(0, 0, 1, 1); canvasTainted = false; }
+            catch (e) { canvasTainted = true; }
+        }
+
+        function fitCanvasDisplaySize() {
+            const w = imgEditorCanvas.width, h = imgEditorCanvas.height;
+            if (!w || !h) return;
+            const availW = Math.min(imgCanvasWrap.parentElement.clientWidth || 480, window.innerWidth * 0.8) - 4;
+            const availH = window.innerHeight * 0.58;
+            const targetLong = Math.min(availW, availH, 520);
+            let scale = targetLong / Math.max(w, h);
+            scale = Math.min(scale, 10);
+            const dispW = Math.max(1, Math.round(w * scale));
+            const dispH = Math.max(1, Math.round(h * scale));
+            imgEditorCanvas.style.width = dispW + 'px';
+            imgEditorCanvas.style.height = dispH + 'px';
+            imgGrayOverlay.style.width = dispW + 'px';
+            imgGrayOverlay.style.height = dispH + 'px';
+        }
+
+        function syncOverlayResolution() {
+            imgGrayOverlay.width = imgEditorCanvas.width;
+            imgGrayOverlay.height = imgEditorCanvas.height;
+        }
+
+        function drawGrayOverlayHole(left, top, w, h) {
+            if (canvasTainted) return;
+            imgGrayOverlayCtx.clearRect(0, 0, imgGrayOverlay.width, imgGrayOverlay.height);
+            imgGrayOverlayCtx.drawImage(imgEditorCanvas, 0, 0);
+            imgGrayOverlayCtx.clearRect(left, top, w, h);
+        }
+
+        function updateCropOverlay() {
+            if (!cropBoxEl || imgEditorTool !== 'crop' || canvasTainted) { imgGrayOverlay.style.display = 'none'; return; }
+            imgGrayOverlay.style.display = 'block';
+            const rect = imgEditorCanvas.getBoundingClientRect();
+            const scaleX = imgEditorCanvas.width / rect.width;
+            const scaleY = imgEditorCanvas.height / rect.height;
+            const left = Math.round(parseFloat(cropBoxEl.style.left) * scaleX);
+            const top = Math.round(parseFloat(cropBoxEl.style.top) * scaleY);
+            const w = Math.round(parseFloat(cropBoxEl.style.width) * scaleX);
+            const h = Math.round(parseFloat(cropBoxEl.style.height) * scaleY);
+            drawGrayOverlayHole(left, top, w, h);
+        }
+
+        function pushHistory() {
+            if (canvasTainted) return;
+            try {
+                imgEditorHistory.push(imgEditorCtx.getImageData(0, 0, imgEditorCanvas.width, imgEditorCanvas.height));
+                if (imgEditorHistory.length > 15) imgEditorHistory.shift();
+            } catch (e) { /* ignore */ }
+        }
+
+        document.getElementById('imgUndoBtn').addEventListener('click', () => {
+            if (imgEditorHistory.length === 0) return;
+            const data = imgEditorHistory.pop();
+            imgEditorCanvas.width = data.width;
+            imgEditorCanvas.height = data.height;
+            imgEditorCtx.putImageData(data, 0, 0);
+            syncOverlayResolution();
+            fitCanvasDisplaySize();
+            removeCropBox();
+            imgEditorTool = null;
+            imgToolCrop.classList.remove('active-tool'); imgToolErase.classList.remove('active-tool');
+            imgCropApplyBtn.style.display = 'none'; eraseToleranceWrap.style.display = 'none';
+        });
+
+        document.getElementById('imgResetBtn').addEventListener('click', () => {
+            if (!imgOriginalSrc) return;
+            if (!confirm('편집 내용을 모두 취소하고 원본 이미지로 되돌릴까요?')) return;
+            imgEditorHistory = [];
+            removeCropBox();
+            imgEditorTool = null;
+            imgToolCrop.classList.remove('active-tool'); imgToolErase.classList.remove('active-tool');
+            imgCropApplyBtn.style.display = 'none'; eraseToleranceWrap.style.display = 'none';
+            loadImageIntoEditor(imgOriginalSrc);
+        });
+
+        imgToolCrop.addEventListener('click', () => {
+            if (canvasTainted) return;
+            imgEditorTool = imgEditorTool === 'crop' ? null : 'crop';
+            imgToolCrop.classList.toggle('active-tool', imgEditorTool === 'crop');
+            imgToolErase.classList.remove('active-tool');
+            eraseToleranceWrap.style.display = 'none';
+            imgCropApplyBtn.style.display = imgEditorTool === 'crop' ? 'inline-block' : 'none';
+            removeCropBox();
+            if (imgEditorTool === 'crop') {
+                setEditorHint('표시할 부분을 남겨놓고 "자르기 적용"을 누르세요.', false);
+                initCropBox();
+            } else {
+                imgGrayOverlay.style.display = 'none';
+                setEditorHint('도구를 선택한 뒤 이미지를 클릭/드래그해 편집하세요.', false);
+            }
+        });
+
+        imgToolErase.addEventListener('click', () => {
+            if (canvasTainted) return;
+            imgEditorTool = imgEditorTool === 'erase' ? null : 'erase';
+            imgToolErase.classList.toggle('active-tool', imgEditorTool === 'erase');
+            imgToolCrop.classList.remove('active-tool');
+            imgCropApplyBtn.style.display = 'none';
+            removeCropBox();
+            eraseToleranceWrap.style.display = imgEditorTool === 'erase' ? 'flex' : 'none';
+            setEditorHint(imgEditorTool === 'erase' ? '지우고 싶은 배경 부분을 클릭하세요.' : '도구를 선택한 뒤 이미지를 클릭/드래그해 편집하세요.', false);
+        });
+
+        eraseToleranceInput.addEventListener('input', () => { eraseToleranceVal.textContent = eraseToleranceInput.value; });
+
+        imgEditorCanvas.addEventListener('click', (e) => {
+            if (imgEditorTool !== 'erase' || canvasTainted) return;
+            const rect = imgEditorCanvas.getBoundingClientRect();
+            const scaleX = imgEditorCanvas.width / rect.width;
+            const scaleY = imgEditorCanvas.height / rect.height;
+            const x = Math.floor((e.clientX - rect.left) * scaleX);
+            const y = Math.floor((e.clientY - rect.top) * scaleY);
+            floodFillTransparent(x, y, parseInt(eraseToleranceInput.value, 10));
+        });
+
+        function floodFillTransparent(startX, startY, tolerance) {
+            const w = imgEditorCanvas.width, h = imgEditorCanvas.height;
+            if (startX < 0 || startY < 0 || startX >= w || startY >= h) return;
+            const imgData = imgEditorCtx.getImageData(0, 0, w, h);
+            const data = imgData.data;
+            const startIdx = (startY * w + startX) * 4;
+            const startR = data[startIdx], startG = data[startIdx+1], startB = data[startIdx+2], startA = data[startIdx+3];
+            if (startA === 0) return;
+            const tol2 = tolerance * tolerance * 3;
+            pushHistory();
+            const visited = new Uint8Array(w * h);
+            const stack = [[startX, startY]];
+            visited[startY * w + startX] = 1;
+            while (stack.length) {
+                const [cx, cy] = stack.pop();
+                const idx = (cy * w + cx) * 4;
+                data[idx + 3] = 0;
+                const neighbors = [[cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]];
+                for (const [nx, ny] of neighbors) {
+                    if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+                    const nKey = ny * w + nx;
+                    if (visited[nKey]) continue;
+                    const nIdx = nKey * 4;
+                    const dr = data[nIdx] - startR, dg = data[nIdx+1] - startG, db = data[nIdx+2] - startB, da = data[nIdx+3] - startA;
+                    if ((dr*dr + dg*dg + db*db + da*da) <= tol2) {
+                        visited[nKey] = 1;
+                        stack.push([nx, ny]);
+                    }
+                }
+            }
+            imgEditorCtx.putImageData(imgData, 0, 0);
+        }
+
+        function initCropBox() {
+            removeCropBox();
+            const rect = imgEditorCanvas.getBoundingClientRect();
+            cropBoxEl = document.createElement('div');
+            cropBoxEl.className = 'crop-box';
+            const side = Math.min(rect.width, rect.height) * 0.7;
+            const initL = (rect.width - side) / 2, initT = (rect.height - side) / 2;
+            cropBoxEl.style.left = initL + 'px';
+            cropBoxEl.style.top = initT + 'px';
+            cropBoxEl.style.width = side + 'px';
+            cropBoxEl.style.height = side + 'px';
+            const handle = document.createElement('div');
+            handle.className = 'crop-handle';
+            cropBoxEl.appendChild(handle);
+            imgCanvasWrap.appendChild(cropBoxEl);
+
+            cropBoxEl.addEventListener('mousedown', (e) => {
+                if (e.target === handle) return;
+                e.preventDefault();
+                cropDrag = { mode: 'move', startX: e.clientX, startY: e.clientY, origLeft: parseFloat(cropBoxEl.style.left), origTop: parseFloat(cropBoxEl.style.top) };
+            });
+            handle.addEventListener('mousedown', (e) => {
+                e.preventDefault(); e.stopPropagation();
+                cropDrag = { mode: 'resize', startX: e.clientX, startY: e.clientY, origSide: parseFloat(cropBoxEl.style.width) };
+            });
+
+            updateCropOverlay();
+        }
+
+        document.addEventListener('mousemove', (e) => {
+            if (!cropDrag || !cropBoxEl) return;
+            const wrapRect = imgEditorCanvas.getBoundingClientRect();
+            if (cropDrag.mode === 'move') {
+                let newLeft = cropDrag.origLeft + (e.clientX - cropDrag.startX);
+                let newTop = cropDrag.origTop + (e.clientY - cropDrag.startY);
+                const side = parseFloat(cropBoxEl.style.width);
+                newLeft = Math.max(0, Math.min(newLeft, wrapRect.width - side));
+                newTop = Math.max(0, Math.min(newTop, wrapRect.height - side));
+                cropBoxEl.style.left = newLeft + 'px';
+                cropBoxEl.style.top = newTop + 'px';
+            } else if (cropDrag.mode === 'resize') {
+                const left = parseFloat(cropBoxEl.style.left), top = parseFloat(cropBoxEl.style.top);
+                const dx = e.clientX - cropDrag.startX;
+                const dy = e.clientY - cropDrag.startY;
+                const delta = (dx + dy) / 2;
+                const maxSide = Math.min(wrapRect.width - left, wrapRect.height - top);
+                let newSide = Math.max(20, Math.min(cropDrag.origSide + delta, maxSide));
+                cropBoxEl.style.width = newSide + 'px';
+                cropBoxEl.style.height = newSide + 'px';
+            }
+            updateCropOverlay();
+        });
+        document.addEventListener('mouseup', () => { cropDrag = null; });
+
+        function removeCropBox() {
+            if (cropBoxEl && cropBoxEl.parentNode) cropBoxEl.parentNode.removeChild(cropBoxEl);
+            cropBoxEl = null; cropDrag = null;
+            imgGrayOverlay.style.display = 'none';
+        }
+
+        imgCropApplyBtn.addEventListener('click', () => {
+            if (!cropBoxEl || canvasTainted) return;
+            const rect = imgEditorCanvas.getBoundingClientRect();
+            const scaleX = imgEditorCanvas.width / rect.width;
+            const scaleY = imgEditorCanvas.height / rect.height;
+            const left = Math.round(parseFloat(cropBoxEl.style.left) * scaleX);
+            const top = Math.round(parseFloat(cropBoxEl.style.top) * scaleY);
+            const w = Math.round(parseFloat(cropBoxEl.style.width) * scaleX);
+            const h = Math.round(parseFloat(cropBoxEl.style.height) * scaleY);
+            if (w < 1 || h < 1) return;
+            pushHistory();
+            const cropped = imgEditorCtx.getImageData(left, top, w, h);
+            imgEditorCanvas.width = w;
+            imgEditorCanvas.height = h;
+            imgEditorCtx.putImageData(cropped, 0, 0);
+            syncOverlayResolution();
+            fitCanvasDisplaySize();
+            removeCropBox();
+            imgEditorTool = null;
+            imgToolCrop.classList.remove('active-tool');
+            imgCropApplyBtn.style.display = 'none';
+            setEditorHint('자르기가 적용되었습니다.', false);
+        });
+
+        document.getElementById('imgEditorCloseBtn').addEventListener('click', closeImageEditor);
+        document.getElementById('imgEditorCancelBtn').addEventListener('click', closeImageEditor);
+        window.addEventListener('resize', () => {
+            if (imgEditorOverlay.classList.contains('active')) { fitCanvasDisplaySize(); updateCropOverlay(); }
+        });
+        function closeImageEditor() {
+            imgEditorOverlay.classList.remove('active');
+            removeCropBox();
+            imgEditorTool = null;
+            imgEditorHistory = [];
+            imgEditorCtxState = null;
+        }
+
+        document.getElementById('imgEditorSaveBtn').addEventListener('click', () => {
+            if (!imgEditorCtxState) return;
+            if (canvasTainted) { alert('이 이미지는 CORS 정책으로 인해 저장할 수 없습니다. 다른 이미지 호스팅을 이용해주세요.'); return; }
+            let dataUrl;
+            try { dataUrl = imgEditorCanvas.toDataURL('image/png'); }
+            catch (e) { alert('이미지 저장에 실패했습니다: ' + e.message); return; }
+            const { charName, idx } = imgEditorCtxState;
+            charactersConfig[charName].avatars[idx].url = dataUrl;
+            expandedChars.add(charName);
+            saveState();
+            renderCharacterConfigUI();
+            renderAll();
+            closeImageEditor();
+        });
+
+        document.getElementById('applyMacroBtn').addEventListener('click', () => {
+            const name = document.getElementById('macroChatName').value.trim();
+            const color = document.getElementById('macroChatColor').value;
+            const avatar = document.getElementById('macroChatAvatar').value.trim();
+            const targets = document.getElementById('macroTargetChars').value.split(',').map(s => s.trim()).filter(Boolean);
+            
+            if(!name || targets.length === 0) return alert('사담 캐릭터 이름과 변경 대상을 입력하세요.');
+
+            if(!charactersConfig[name]) charactersConfig[name] = { color: color, hide: false, avatars: [{ name: '기본', url: avatar }] };
+            else { charactersConfig[name].color = color; if(avatar && charactersConfig[name].avatars[0]) charactersConfig[name].avatars[0].url = avatar; }
+
+            let changed = false;
+            ['main', 'sub'].forEach(type => {
+                logsData[type].forEach(log => {
+                    const t = log.tab.toLowerCase();
+                    if ((t === 'other' || t === '잡담') && targets.includes(log.speaker)) { log.speaker = name; log.color = color; changed = true; }
+                });
+            });
+
+            if(changed) { alert('일괄 변환되었습니다.'); saveState(); renderCharacterConfigUI(); renderAll(true); }
+            else alert('조건에 맞는 대상이 없습니다.');
+        });
+
+        function toggleSelection(type, logId, speaker, isCtrl) {
+            if (!isCtrl) { clearSelection('main'); clearSelection('sub'); return; }
+            const set = selectedCards[type];
+            if (set.has(logId)) {
+                set.delete(logId);
+                if (set.size === 0) selectionSpeaker[type] = null;
+            } else {
+                if (set.size === 0) selectionSpeaker[type] = speaker;
+                if (selectionSpeaker[type] === speaker) set.add(logId);
+            }
+            updateSelectionUI(type); renderAll();
+        }
+
+        function clearSelection(type) { selectedCards[type].clear(); selectionSpeaker[type] = null; updateSelectionUI(type); }
+        
+        function updateSelectionUI(type) {
+            const tb = document.getElementById(`${type}SelectionToolbar`);
+            const count = selectedCards[type].size;
+            document.getElementById(`${type}SelectCount`).textContent = count;
+            if (count > 0) tb.classList.add('active'); else tb.classList.remove('active');
+        }
+
+        ['main', 'sub'].forEach(type => {
+            document.getElementById(`${type}BatchDelBtn`).addEventListener('click', () => batchDelete(type));
+            document.getElementById(`${type}BatchImageBtn`).addEventListener('click', () => batchImageChange(type));
+        });
+
+        function batchDelete(type) {
+            if (selectedCards[type].size === 0) return;
+            if (!confirm(`선택한 ${selectedCards[type].size}개의 로그를 삭제하시겠습니까?`)) return;
+            logsData[type] = logsData[type].filter(l => !selectedCards[type].has(l.id));
+            clearSelection(type); saveState(); syncTagsFromData(); renderAll(true);
+        }
+
+        function batchImageChange(type) {
+            if (selectedCards[type].size === 0) return;
+            const speaker = selectionSpeaker[type];
+            const cfg = charactersConfig[speaker];
+            if (!cfg || cfg.avatars.length === 0) return alert('해당 캐릭터에 등록된 이미지가 없습니다.');
+            
+            const names = cfg.avatars.map(a => a.name).join(', ');
+            const targetName = prompt(`변경할 이미지 이름을 입력하세요.\n등록된 이미지: ${names}`);
+            if (!targetName) return;
+            if (!cfg.avatars.find(a => a.name === targetName)) return alert('존재하지 않는 이미지 이름입니다.');
+
+            logsData[type].forEach(l => { if(selectedCards[type].has(l.id)) l.avatarName = targetName; });
+            clearSelection(type); saveState(); renderAll();
+        }
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Delete' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+                if (selectedCards.main.size > 0) batchDelete('main');
+                if (selectedCards.sub.size > 0) batchDelete('sub');
+            }
+        });
+
+        function renderAll(resetScroll = false) { renderVisibleLogs('main', resetScroll); renderVisibleLogs('sub', resetScroll); }
+
+        function renderVisibleLogs(type, resetScroll = false) {
+            const container = document.getElementById(`${type}LogContainer`);
+            if (resetScroll) { container.scrollTop = 0; visibleCounts[type] = CHUNK_SIZE; }
+            container.innerHTML = '';
+            container.classList.toggle('has-items', logsData[type].length > 0);
+
+            const slice = logsData[type].slice(0, visibleCounts[type]);
+            const searchHighlightTarget = searchStates[type].index > -1 ? searchStates[type].results[searchStates[type].index] : null;
+
+            slice.forEach(log => container.appendChild(createLogCardDOM(log, type, searchHighlightTarget)));
+        }
+
+        ['main', 'sub'].forEach(type => {
+            const container = document.getElementById(`${type}LogContainer`);
+            container.addEventListener('scroll', () => {
+                if (container.scrollTop + container.clientHeight >= container.scrollHeight - 100) {
+                    if (visibleCounts[type] < logsData[type].length) {
+                        visibleCounts[type] += CHUNK_SIZE;
+                        renderVisibleLogs(type, false);
+                    }
+                }
+            });
+        });
+
+        function toggleWrap(ta, w) {
+            const s = ta.selectionStart, e = ta.selectionEnd, t = ta.value, wl = w.length;
+            const before = t.substring(Math.max(0, s - wl), s), after = t.substring(e, e + wl);
+            if (before === w && after === w) {
+                ta.value = t.substring(0, s - wl) + t.substring(s, e) + t.substring(e + wl);
+                ta.selectionStart = s - wl; ta.selectionEnd = e - wl; return;
+            }
+            const insideBefore = t.substring(s, s + wl), insideAfter = t.substring(e - wl, e);
+            if (e - s >= wl * 2 && insideBefore === w && insideAfter === w) {
+                ta.value = t.substring(0, s) + t.substring(s + wl, e - wl) + t.substring(e);
+                ta.selectionStart = s; ta.selectionEnd = e - wl * 2; return;
+            }
+            ta.value = t.substring(0, s) + w + t.substring(s, e) + w + t.substring(e);
+            ta.selectionStart = s + wl; ta.selectionEnd = e + wl;
+        }
+
+        function createLogCardDOM(log, containerType, highlightTargetId) {
+            const card = document.createElement('div');
+            card.className = 'log-card'; card.draggable = true; card.dataset.id = log.id;
+            if (tagColorMap[log.tab]) card.style.backgroundColor = tagColorMap[log.tab];
+            if (highlightTargetId === log.id) card.classList.add('search-highlight');
+            if (selectedCards[containerType].has(log.id)) card.classList.add('selected');
+
+            const targetCfg = charactersConfig[log.speaker];
+            let displayColor = targetCfg ? targetCfg.color : log.color;
+            const effectiveHide = !!(targetCfg && targetCfg.hide && !isMiscTagName(log.tab));
+            let visibility = effectiveHide ? 'visibility:hidden;' : '';
+            let hiddenStyleClass = effectiveHide ? ' hidden-style' : '';
+            
+            let displayAvatarUrl = ''; let hasAvatar = false;
+            if (targetCfg && targetCfg.avatars && targetCfg.avatars.length > 0) {
+                hasAvatar = true;
+                const savedAvatar = targetCfg.avatars.find(a => a.name === log.avatarName);
+                displayAvatarUrl = savedAvatar ? savedAvatar.url : targetCfg.avatars[0].url;
+            }
+
+            let avatarStyle = displayAvatarUrl ? 'display:block;' : '';
+            if (effectiveHide) avatarStyle += 'visibility:hidden;';
+
+            card.innerHTML = `
+                <span class="tab-badge" title="탭 변경">[${log.tab}]</span>
+                <div class="card-avatar-wrapper">
+                    <img class="card-avatar ${targetCfg && targetCfg.avatars.length > 1 ? 'clickable' : ''}" src="${displayAvatarUrl}" ${avatarStyle ? `style="${avatarStyle}"` : ''} title="이미지 변경">
+                </div>
+                <div class="card-body">
+                    <div class="card-header-group">
+                        <span class="speaker-name" style="color: ${displayColor}; ${visibility}" title="캐릭터 변경">${log.speaker}</span>
+                        ${log.dateText ? `<span class="log-datetime" style="${visibility}">${log.dateText}</span>` : ''}
+                    </div>
+                    <div class="log-content-wrap">
+                        <span class="log-content${hiddenStyleClass}">${processDiceMessage(parseMarkdown(log.rawContent), true)}</span>
+                    </div>
+                </div>
+            `;
+
+            card.addEventListener('mousedown', (e) => {
+                if(e.button === 2) return;
+                if (e.target.closest('select, input, textarea, .card-avatar, .tab-badge, .speaker-name, .log-content')) return;
+                toggleSelection(containerType, log.id, log.speaker, e.ctrlKey || e.metaKey);
+            });
+
+            card.addEventListener('contextmenu', (e) => {
+                e.preventDefault(); e.stopPropagation();
+                ctxTargetId = log.id; ctxTargetType = containerType;
+                showContextMenu(e.pageX, e.pageY);
+            });
+
+            const avatarImg = card.querySelector('.card-avatar');
+            if (hasAvatar && targetCfg.avatars.length > 1) {
+                avatarImg.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (card.querySelector('.avatar-select')) return;
+                    const select = document.createElement('select'); select.className = 'inline-select avatar-select';
+                    targetCfg.avatars.forEach(a => {
+                        const opt = document.createElement('option'); opt.value = a.name; opt.textContent = a.name;
+                        if (a.name === (log.avatarName || targetCfg.avatars[0].name)) opt.selected = true;
+                        select.appendChild(opt);
+                    });
+                    avatarImg.style.display = 'none'; card.querySelector('.card-avatar-wrapper').appendChild(select); select.focus();
+                    const finish = () => { log.avatarName = select.value; saveState(); renderVisibleLogs(containerType); };
+                    select.addEventListener('blur', finish); select.addEventListener('change', finish);
+                });
+            }
+
+            const badge = card.querySelector('.tab-badge');
+            badge.addEventListener('click', (e) => {
+                e.stopPropagation(); if (card.querySelector('select:not(.avatar-select)')) return;
+                const select = document.createElement('select'); select.className = 'inline-select';
+                registeredTags.forEach(t => {
+                    const opt = document.createElement('option'); opt.value = t; opt.textContent = `[${t}]`;
+                    if (t === log.tab) opt.selected = true; select.appendChild(opt);
+                });
+                badge.style.display = 'none'; badge.insertAdjacentElement('afterend', select); select.focus();
+                const finish = () => { log.tab = select.value; saveState(); syncTagsFromData(); renderAll(); };
+                select.addEventListener('blur', finish); select.addEventListener('change', finish);
+            });
+
+            const nameEl = card.querySelector('.speaker-name');
+            nameEl.addEventListener('click', (e) => {
+                e.stopPropagation(); if (card.querySelector('select:not(.avatar-select)')) return;
+                const select = document.createElement('select'); select.className = 'inline-select';
+                const opts = new Set(Object.keys(charactersConfig)); opts.add('시스템');
+                opts.forEach(c => {
+                    const opt = document.createElement('option'); opt.value = c; opt.textContent = c;
+                    if (c === log.speaker) opt.selected = true; select.appendChild(opt);
+                });
+                nameEl.style.display = 'none'; card.querySelector('.card-header-group').appendChild(select); select.focus();
+                const finish = () => { log.speaker = select.value; saveState(); renderAll(); };
+                select.addEventListener('blur', finish); select.addEventListener('change', finish);
+            });
+
+            const contentSpan = card.querySelector('.log-content');
+            contentSpan.addEventListener('dblclick', (e) => {
+                e.stopPropagation(); if (card.querySelector('.card-inline-editor')) return;
+                card.draggable = false;
+                const textarea = document.createElement('textarea'); textarea.className = 'card-inline-editor';
+                textarea.value = log.rawContent; contentSpan.style.display = 'none';
+                card.querySelector('.log-content-wrap').appendChild(textarea); textarea.focus();
+
+                const finish = () => {
+                    let text = textarea.value;
+                    const atIndex = text.indexOf('@');
+                    if (atIndex !== -1 && targetCfg && targetCfg.avatars) {
+                        const imgName = text.substring(atIndex + 1).trim();
+                        const matched = targetCfg.avatars.find(a => a.name === imgName);
+                        if (matched) {
+                            log.avatarName = matched.name;
+                            text = text.substring(0, atIndex).trim();
+                        }
+                    }
+
+                    let cleaned = stripBrAndSpaces(text);
+                    if (!cleaned) {
+                        if (confirm('대사가 비어있어 해당 카드가 삭제됩니다. 진행하시겠습니까?')) {
+                            logsData[containerType] = logsData[containerType].filter(l => l.id !== log.id);
+                        }
+                    } else { log.rawContent = cleaned; }
+                    saveState(); renderVisibleLogs(containerType);
+                };
+                textarea.addEventListener('blur', finish);
+                textarea.addEventListener('keydown', (evt) => {
+                    if (evt.ctrlKey || evt.metaKey) {
+                        if (evt.key.toLowerCase() === 'b') { evt.preventDefault(); toggleWrap(textarea, '*'); }
+                        else if (evt.key.toLowerCase() === 'i') { evt.preventDefault(); toggleWrap(textarea, '**'); }
+                    } else if (evt.key === 'Enter' && !evt.shiftKey) { evt.preventDefault(); textarea.blur(); }
+                });
+            });
+
+            card.addEventListener('dragstart', e => { card.classList.add('dragging'); e.dataTransfer.setData('text/plain', log.id); e.dataTransfer.setData('sourceType', containerType); });
+            card.addEventListener('dragend', () => card.classList.remove('dragging'));
+
+            return card;
+        }
+
+        document.addEventListener('click', (e) => { if(!ctxMenu.contains(e.target)) ctxMenu.style.display = 'none'; });
+        
+        document.getElementById('ctxAddBlank').addEventListener('click', () => {
+            if(!ctxTargetId || !ctxTargetType) return;
+            const list = logsData[ctxTargetType]; const idx = list.findIndex(l => l.id === ctxTargetId);
+            if(idx > -1) { const ref = list[idx]; list.splice(idx+1, 0, { id: generateId(), tab: ref.tab, speaker: ref.speaker, color: ref.color, rawContent: '내용을 입력하세요', avatarName: ref.avatarName }); saveState(); renderAll(); }
+            ctxMenu.style.display = 'none';
+        });
+        document.getElementById('ctxDelAbove').addEventListener('click', () => {
+            if(!ctxTargetId || !ctxTargetType) return;
+            const list = logsData[ctxTargetType]; const idx = list.findIndex(l => l.id === ctxTargetId);
+            if(idx > 0 && confirm('이 카드 위쪽의 로그를 모두 삭제하시겠습니까?')) { logsData[ctxTargetType] = list.slice(idx); saveState(); syncTagsFromData(); renderAll(true); }
+            ctxMenu.style.display = 'none';
+        });
+        document.getElementById('ctxDelBelow').addEventListener('click', () => {
+            if(!ctxTargetId || !ctxTargetType) return;
+            const list = logsData[ctxTargetType]; const idx = list.findIndex(l => l.id === ctxTargetId);
+            if(idx > -1 && idx < list.length -1 && confirm('이 카드 아래쪽의 로그를 모두 삭제하시겠습니까?')) { logsData[ctxTargetType] = list.slice(0, idx + 1); saveState(); syncTagsFromData(); renderAll(true); }
+            ctxMenu.style.display = 'none';
+        });
+
+        function setupDragDrop(container, type) {
+            container.addEventListener('dragover', e => {
+                e.preventDefault(); const dragging = document.querySelector('.log-card.dragging'); if (!dragging) return;
+                container.classList.add('dragover');
+                const afterEl = getDragAfterElement(container, e.clientY);
+                if (!afterEl) container.appendChild(dragging); else container.insertBefore(dragging, afterEl);
+            });
+            container.addEventListener('dragleave', () => container.classList.remove('dragover'));
+            container.addEventListener('drop', e => {
+                e.preventDefault(); container.classList.remove('dragover');
+                const draggedId = e.dataTransfer.getData('text/plain'); if (!draggedId) return;
+                
+                let sourceLog;
+                ['main', 'sub'].forEach(t => { const idx = logsData[t].findIndex(l => l.id === draggedId); if (idx > -1) { sourceLog = logsData[t].splice(idx, 1)[0]; } });
+                
+                if (sourceLog) {
+                    const afterEl = getDragAfterElement(container, e.clientY);
+                    let targetList = logsData[type];
+                    if (afterEl) {
+                        const tIdx = targetList.findIndex(l => l.id === afterEl.dataset.id);
+                        if (tIdx > -1) targetList.splice(tIdx, 0, sourceLog); else targetList.push(sourceLog);
+                    } else targetList.push(sourceLog);
+                    saveState(); syncTagsFromData(); renderAll();
+                }
+            });
+        }
+        setupDragDrop(mainLogContainer, 'main'); setupDragDrop(subLogContainer, 'sub');
+
+        function getDragAfterElement(container, y) {
+            return [...container.querySelectorAll('.log-card:not(.dragging)')].reduce((closest, child) => {
+                const box = child.getBoundingClientRect(), offset = y - box.top - box.height / 2;
+                return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest;
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        function runSearch(type) {
+            const q = document.getElementById(`${type}SearchInput`).value.trim().toLowerCase();
+            searchStates[type].query = q;
+            const countEl = document.getElementById(`${type}SearchCount`);
+            if (!q) { searchStates[type].results = []; searchStates[type].index = -1; countEl.textContent = '0/0'; renderVisibleLogs(type); return; }
+            searchStates[type].results = logsData[type].filter(l => l.rawContent.toLowerCase().includes(q)).map(l => l.id);
+            searchStates[type].index = searchStates[type].results.length > 0 ? 0 : -1;
+            updateSearchUI(type); if (searchStates[type].results.length > 0) jumpToSearchMatch(type); else renderVisibleLogs(type);
+        }
+        function navigateSearch(type, dir) {
+            const st = searchStates[type]; if (st.results.length === 0) return;
+            st.index += dir; if (st.index < 0) st.index = st.results.length - 1; if (st.index >= st.results.length) st.index = 0;
+            updateSearchUI(type); jumpToSearchMatch(type);
+        }
+        function updateSearchUI(type) {
+            const st = searchStates[type]; document.getElementById(`${type}SearchCount`).textContent = st.results.length > 0 ? `${st.index + 1}/${st.results.length}` : '0/0';
+        }
+        function jumpToSearchMatch(type) {
+            const st = searchStates[type]; if (st.index === -1) return;
+            const targetId = st.results[st.index];
+            const logIdx = logsData[type].findIndex(l => l.id === targetId);
+            if (logIdx === -1) return;
+            if(logIdx >= visibleCounts[type]) visibleCounts[type] = logIdx + CHUNK_SIZE;
+            renderVisibleLogs(type); 
+            setTimeout(() => { const card = document.querySelector(`.log-card[data-id="${targetId}"]`); if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50);
+        }
+
+        document.getElementById('mainSearchInput').addEventListener('input', () => runSearch('main'));
+        document.getElementById('subSearchInput').addEventListener('input', () => runSearch('sub'));
+        document.addEventListener('keydown', e => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+                e.preventDefault();
+                ['main', 'sub'].forEach(type => {
+                    const box = document.getElementById(`${type}SearchContainer`);
+                    box.classList.toggle('active');
+                    if (!box.classList.contains('active')) { document.getElementById(`${type}SearchInput`).value = ''; runSearch(type); }
+                });
+                if(document.getElementById('mainSearchContainer').classList.contains('active')) document.getElementById('mainSearchInput').focus();
+            } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+                e.preventDefault(); if (e.shiftKey) redo(); else undo();
+            } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) { e.preventDefault(); redo(); }
+        });
+
+        window.addEventListener('dragover', e => e.preventDefault()); window.addEventListener('drop', e => e.preventDefault());
+        function setupFileDrop(container, targetType) {
+            container.addEventListener('drop', e => {
+                const files = e.dataTransfer.files; if (files.length === 0) return;
+                let charsAdded = false;
+                Array.from(files).forEach(file => {
+                    if (!file.name.endsWith('.html')) return;
+                    if (targetType === 'main' && !document.getElementById('sessionTitle').value) document.getElementById('sessionTitle').value = file.name.replace(/\.html$/i, '').replace(/\[.*?\]/g, '').trim();
+
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const doc = new DOMParser().parseFromString(event.target.result, 'text/html');
+                        let newLogs = [];
+
+                        const styleBlocks = doc.querySelectorAll('style');
+                        let extractedColors = {}; 
+                        styleBlocks.forEach(style => {
+                            const cssText = style.textContent;
+                            const matches = [...cssText.matchAll(/\.(p_c\d+)\s*b\s*\{\s*color:\s*([^!]+?)!\s*important/g)];
+                            matches.forEach(m => extractedColors[m[1]] = m[2].trim());
+                        });
+
+                        const importedLinkEl = doc.querySelector('#tr_title a');
+                        if (importedLinkEl) {
+                            const importedHref = importedLinkEl.getAttribute('href') || '';
+                            if (importedHref && !document.getElementById('sessionLink').value) {
+                                document.getElementById('sessionLink').value = importedHref;
+                            }
+                        }
+
+                        if (doc.querySelector('#cocoback')) {
+                            let lastSpeaker = '시스템';
+
+                            const ccbEntries = [];
+                            { 
+                                let scanLastSpeaker = '시스템';
+                                doc.querySelectorAll('.ccb-player').forEach(p => {
+                                    const labelText = p.querySelector('.char-name-label')?.textContent.trim();
+                                    const spk = p.getAttribute('data-speaker') || labelText || scanLastSpeaker;
+                                    if (spk !== '시스템') scanLastSpeaker = spk;
+                                    const hasContent = !!stripBrAndSpaces(p.querySelector('.char-msg-content, .dice-box')?.innerHTML || '');
+                                    if (!hasContent) return;
+                                    let col = null;
+                                    if (p.hasAttribute('data-color')) col = p.getAttribute('data-color');
+                                    else p.classList.forEach(c => { if (c.startsWith('p_c') && extractedColors[c]) col = extractedColors[c]; });
+                                    ccbEntries.push({ speaker: spk, color: col });
+                                });
+                            }
+                            const speakerColorOverride = resolveSpeakerInitialColors(ccbEntries);
+
+                            doc.querySelectorAll('.ccb-player').forEach(p => {
+                                let labelText = p.querySelector('.char-name-label')?.textContent.trim();
+                                let speaker = p.getAttribute('data-speaker') || labelText || lastSpeaker;
+                                if (speaker !== '시스템') lastSpeaker = speaker;
+
+                                let content = p.querySelector('.char-msg-content, .dice-box')?.innerHTML || '';
+                                content = stripBrAndSpaces(content); if(!content) return;
+                                
+                                let tab = 'main', extColor = '#ffffff';
+                                
+                                p.classList.forEach(c => { 
+                                    if(c.startsWith('tag-')) try{ tab = decodeURIComponent(atob(c.replace('tag-',''))); } catch(e){} 
+                                });
+
+                                if (p.hasAttribute('data-color')) {
+                                    extColor = p.getAttribute('data-color');
+                                } else {
+                                    p.classList.forEach(c => { 
+                                        if(c.startsWith('p_c')) { extColor = extractedColors[c] || extColor; }
+                                    });
+                                }
+                                
+                                let avatarUrl = '';
+                                const imgTag = p.querySelector('img.res-avatar');
+                                if (imgTag) avatarUrl = imgTag.src;
+                                
+                                let currentAvName = '기본';
+
+                                if (speaker !== '시스템' && !charactersConfig[speaker]) { 
+                                    const initColor = speakerColorOverride[speaker] || extColor;
+                                    charactersConfig[speaker] = { color: initColor, hide: false, avatars: [{name:'기본', url: avatarUrl}] }; charsAdded = true; 
+                                } else if (speaker !== '시스템' && avatarUrl) {
+                                    const exAv = charactersConfig[speaker].avatars.find(a => a.url === avatarUrl);
+                                    if(exAv) currentAvName = exAv.name;
+                                    else {
+                                        currentAvName = `추가이미지${charactersConfig[speaker].avatars.length}`;
+                                        charactersConfig[speaker].avatars.push({name: currentAvName, url: avatarUrl});
+                                    }
+                                }
+                                newLogs.push({ id: generateId(), tab, speaker, color: extColor, rawContent: content, avatarName: currentAvName });
+                            });
+                        } else if (doc.querySelector('.message-list')) {
+                            const avatarImgMap = {};
+                            styleBlocks.forEach(style => {
+                                const cssText = style.textContent;
+                                const avMatches = [...cssText.matchAll(/\.(avatar-image-\d+)\s*\{\s*background-image:\s*url\((["']?)([\s\S]*?)\2\)\s*;?\s*\}/g)];
+                                avMatches.forEach(m => avatarImgMap[m[1]] = m[3]);
+                            });
+
+                            const newFmtEntries = [];
+                            doc.querySelectorAll('article.message').forEach(art => {
+                                const isSystem = art.classList.contains('system');
+                                const speakerEl = art.querySelector('.speaker');
+                                const speaker = isSystem ? '시스템' : (speakerEl?.textContent.trim() || '시스템');
+
+                                let color = null;
+                                if (speakerEl) {
+                                    const cm = (speakerEl.getAttribute('style') || '').match(/--speaker-color:\s*(#[0-9a-fA-F]{3,8})/);
+                                    if (cm) color = cm[1];
+                                }
+
+                                const msgText = art.querySelector('.message-text')?.innerHTML || '';
+                                const rollEl = art.querySelector('.roll-result');
+                                let content = msgText;
+                                if (rollEl) content = content ? (content + '<br>' + rollEl.innerHTML) : rollEl.innerHTML;
+                                content = stripBrAndSpaces(content); if (!content) return;
+
+                                let tab = 'main';
+                                const chMatch = art.querySelector('.channel-name')?.textContent.match(/\[(.*?)\]/);
+                                if (chMatch) tab = chMatch[1].trim();
+
+                                let avatarUrl = '';
+                                const avClass = [...(art.querySelector('.avatar')?.classList || [])].find(c => c.startsWith('avatar-image-'));
+                                if (avClass && avatarImgMap[avClass]) avatarUrl = avatarImgMap[avClass];
+
+                                const timeEl = art.querySelector('time.timestamp');
+                                const datetime = timeEl ? (timeEl.getAttribute('datetime') || null) : null;
+                                const dateText = timeEl ? timeEl.textContent.trim() : '';
+
+                                newFmtEntries.push({ speaker, color, content, tab, avatarUrl, datetime, dateText });
+                            });
+
+                            const speakerLastColor = {};
+                            newFmtEntries.forEach(e => { if (e.speaker !== '시스템' && e.color) speakerLastColor[e.speaker] = e.color; });
+
+                            newFmtEntries.forEach(e => {
+                                const finalColor = speakerLastColor[e.speaker] || e.color || '#ffffff';
+                                let currentAvName = '기본';
+                                if (e.speaker !== '시스템' && !charactersConfig[e.speaker]) {
+                                    charactersConfig[e.speaker] = { color: finalColor, hide: false, avatars: [{ name: '기본', url: e.avatarUrl }] };
+                                    charsAdded = true;
+                                } else if (e.speaker !== '시스템' && e.avatarUrl) {
+                                    const exAv = charactersConfig[e.speaker].avatars.find(a => a.url === e.avatarUrl);
+                                    if (exAv) currentAvName = exAv.name;
+                                    else {
+                                        currentAvName = `추가이미지${charactersConfig[e.speaker].avatars.length}`;
+                                        charactersConfig[e.speaker].avatars.push({ name: currentAvName, url: e.avatarUrl });
+                                    }
+                                }
+                                newLogs.push({ id: generateId(), tab: e.tab, speaker: e.speaker, color: e.color || finalColor, rawContent: e.content, avatarName: currentAvName, datetime: e.datetime, dateText: e.dateText });
+                            });
+                        } else {
+                            const defaultTab = (file.name.match(/\[(.*?)\]/)?.[1]?.trim()) || (targetType === 'sub' ? 'other' : 'main');
+
+                            const rawEntries = [];
+                            doc.querySelectorAll('body > p, p.msg, div.msg').forEach(p => {
+                                let speaker = '시스템', content = p.innerHTML;
+                                const spanTags = p.querySelectorAll('span');
+                                if (spanTags.length >= 3) { speaker = spanTags[1].textContent.trim(); content = spanTags[2].innerHTML; }
+                                else if (spanTags.length === 2) { speaker = spanTags[0].textContent.trim(); content = spanTags[1].innerHTML; }
+                                if (!stripBrAndSpaces(content)) return;
+                                rawEntries.push({ speaker, color: p.style.color || null });
+                            });
+                            const speakerColorOverride = resolveSpeakerInitialColors(rawEntries);
+
+                            doc.querySelectorAll('body > p, p.msg, div.msg').forEach(p => {
+                                let tab = defaultTab, speaker = '시스템', content = p.innerHTML;
+                                const spanTags = p.querySelectorAll('span');
+                                if (spanTags.length >= 3) {
+                                    const tagMatch = spanTags[0].textContent.match(/\[(.*?)\]/);
+                                    if (tagMatch) tab = tagMatch[1].trim();
+                                    speaker = spanTags[1].textContent.trim();
+                                    content = spanTags[2].innerHTML;
+                                } else if (spanTags.length === 2) { speaker = spanTags[0].textContent.trim(); content = spanTags[1].innerHTML; }
+                                content = stripBrAndSpaces(content); if(!content) return;
+                                const pColor = p.style.color || '#ffffff';
+                                if (speaker !== '시스템' && !charactersConfig[speaker]) {
+                                    const initColor = speakerColorOverride[speaker] || pColor;
+                                    charactersConfig[speaker] = { color: initColor, hide: false, avatars: [{name:'기본', url:''}] }; charsAdded = true;
+                                }
+                                newLogs.push({ id: generateId(), tab, speaker, color: pColor, rawContent: content });
+                            });
+                        }
+                        if (newLogs.length > 0) {
+                            logsData[targetType].push(...newLogs);
+                            syncTagsFromData(); sortRegisteredTagsByDefaultOrder(); renderTagList(); saveState(); 
+                            if(charsAdded) renderCharacterConfigUI();
+                            renderAll(true);
+                        }
+                    };
+                    reader.readAsText(file, 'UTF-8');
+                });
+            });
+        }
+        setupFileDrop(mainLogContainer, 'main'); setupFileDrop(subLogContainer, 'sub');
+
+        document.getElementById('mergeBtn').addEventListener('click', () => {
+            if(logsData.sub.length === 0 || !confirm('서브 로그 전체를 메인 로그 하단으로 이동시킵니다.')) return;
+            logsData.main.push(...logsData.sub); logsData.sub = []; saveState(); renderAll(true);
+        });
+        document.getElementById('moveMainToSubBtn').addEventListener('click', () => {
+            if(logsData.main.length === 0 || !confirm('메인 로그 전체를 서브 로그 하단으로 이동시킵니다.')) return;
+            logsData.sub.push(...logsData.main); logsData.main = []; saveState(); renderAll(true);
+        });
+        function separateTagToSub(tag) {
+            const matched = logsData.main.filter(l => l.tab === tag);
+            if (matched.length === 0) { alert('메인 로그에 해당 탭의 로그가 없습니다.'); return; }
+            logsData.sub.push(...matched);
+            logsData.main = logsData.main.filter(l => l.tab !== tag);
+            saveState(); syncTagsFromData(); renderAll(true);
+        }
+        function deleteTagLogs(tag) {
+            const count = logsData.main.filter(l => l.tab === tag).length + logsData.sub.filter(l => l.tab === tag).length;
+            if (count > 0 && !confirm(`[${tag}] 탭에 포함된 로그 ${count}개를 모두 삭제하시겠습니까?`)) return;
+            logsData.main = logsData.main.filter(l => l.tab !== tag);
+            logsData.sub = logsData.sub.filter(l => l.tab !== tag);
+            saveState(); syncTagsFromData(); renderAll(true);
+        }
+        document.getElementById('clearMainLogBtn').addEventListener('click', () => {
+            if (confirm('메인 로그를 모두 삭제하시겠습니까?')) { logsData.main = []; saveState(); syncTagsFromData(); renderAll(true); }
+        });
+        document.getElementById('clearSubLogBtn').addEventListener('click', () => {
+            if (confirm('서브 로그를 모두 삭제하시겠습니까?')) { logsData.sub = []; saveState(); syncTagsFromData(); renderAll(true); }
+        });
+
+        let isResizing = false;
+        document.getElementById('resizer').addEventListener('mousedown', () => { isResizing = true; document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none'; });
+        document.addEventListener('mousemove', e => {
+            if (!isResizing) return;
+            const w = e.clientX - document.getElementById('workspace').getBoundingClientRect().left;
+            if (w > 250 && w < document.body.clientWidth - 250) document.getElementById('mainEditor').style.width = w + 'px';
+        });
+        document.addEventListener('mouseup', () => { isResizing = false; document.body.style.removeProperty('cursor'); document.body.style.removeProperty('user-select'); });
+
+        function isWhiteColorValue(val) {
+            if (!val) return true;
+            val = val.trim().toLowerCase().replace(/\s+/g, '');
+            if (['white', '#fff', '#ffffff', 'inherit', 'initial', 'unset', 'currentcolor', 'transparent'].includes(val)) return true;
+            let m = val.match(/^rgba?\(([\d.]+),([\d.]+),([\d.]+)(?:,([\d.]+))?\)$/);
+            if (m) {
+                const r = parseFloat(m[1]), g = parseFloat(m[2]), b = parseFloat(m[3]);
+                const a = m[4] !== undefined ? parseFloat(m[4]) : 1;
+                if (a === 0) return true;
+                return r >= 250 && g >= 250 && b >= 250;
+            }
+            m = val.match(/^#([0-9a-f]{3})$/);
+            if (m) return /^f+$/.test(m[1]);
+            m = val.match(/^#([0-9a-f]{6})$/);
+            if (m) return /^f{6}$/.test(m[1]);
+            m = val.match(/^#([0-9a-f]{8})$/);
+            if (m) return /^f{6}(00|f{2})$/.test(m[1]);
+            return false;
+        }
+
+        function hasNonWhiteColoredText(htmlContent) {
+            const colorRegex = /color\s*:\s*([^;"'>]+)/gi;
+            let match;
+            while ((match = colorRegex.exec(htmlContent)) !== null) {
+                if (!isWhiteColorValue(match[1])) return true;
+            }
+            const fontColorRegex = /<font[^>]*\scolor\s*=\s*["']?([^"'\s>]+)/gi;
+            while ((match = fontColorRegex.exec(htmlContent)) !== null) {
+                if (!isWhiteColorValue(match[1])) return true;
+            }
+            return false;
+        }
+
+        function processDiceMessage(htmlContent, useDiceColor) {
+            let text = htmlContent.trim();
+            if (hasNonWhiteColoredText(text) || text.includes('🎰')) {
+                if (useDiceColor) {
+                    const plain = text.replace(/<[^>]*>/g, '');
+                    const greens = ['어려운 성공', '대단한 성공', '극단적 성공', '보통 성공', '대성공'];
+                    const reds = ['대실패', '실패'];
+                    let matched = false;
+                    for (let w of greens) {
+                        if (plain.endsWith(w) || plain.includes(w + ' ')) {
+                            text = text.replace(new RegExp(w + '(?![^<]*>)', 'g'), `<span style="color: #2bcb20 !important; font-weight: bold;">${w}</span>`);
+                            matched = true; break;
+                        }
+                    }
+                    if (!matched) {
+                        for (let w of reds) {
+                            if (plain.endsWith(w) || plain.includes(w + ' ')) {
+                                text = text.replace(new RegExp(w + '(?![^<]*>)', 'g'), `<span style="color: #c42121 !important; font-weight: bold;">${w}</span>`);
+                                break;
+                            }
+                        }
+                    }
+                }
+                return `<div class="dice-box">${text}</div>`;
+            }
+            return `<span class="char-msg-content">${text}</span>`;
+        }
+
+        function generateFinalHTML() {
+            if (logsData.main.length === 0) { 
+                alert('메인 로그가 없습니다! 화면 중앙에 로그 파일을 먼저 끌어다 놓아주세요.'); 
+                return null; 
+            }
+            
+            let chatLogHTML = '', bgStyles = '', charStyles = '';
+            const hideCont = document.getElementById('hideContinuousName').checked;
+            const useDice = document.getElementById('enableColoringDice').checked;
+            const collapseOtherOnStart = document.getElementById('collapseOtherOnStart').checked;
+
+            let speakerClassMap = {};
+            let charClassIdx = 1;
+
+            const combinedLogs = [...logsData.main.map(l => ({ ...l, isSubOrigin: false })), ...logsData.sub.map(l => ({ ...l, isSubOrigin: true }))];
+
+            const procs = combinedLogs.map(log => {
+                const targetCfg = charactersConfig[log.speaker];
+                const finalColor = (targetCfg && targetCfg.color) ? targetCfg.color : log.color;
+                
+                if (!speakerClassMap[log.speaker]) {
+                    speakerClassMap[log.speaker] = `p_c${charClassIdx++}`;
+                    if (finalColor) {
+                        charStyles += `#cocoback div.ccb-player.${speakerClassMap[log.speaker]} b { color: ${finalColor} !important; }\n`;
+                    }
+                }
+
+                let avatarUrl = '';
+                if (targetCfg && targetCfg.avatars.length > 0) {
+                    const matched = targetCfg.avatars.find(a => a.name === log.avatarName);
+                    avatarUrl = matched ? matched.url : targetCfg.avatars[0].url;
+                }
+                return { 
+                    speaker: log.speaker, 
+                    charClass: speakerClassMap[log.speaker], 
+                    tab: log.tab, 
+                    content: parseMarkdown(log.rawContent), 
+                    isForceHidden: !!(targetCfg && targetCfg.hide && !isMiscTagName(log.tab)), 
+                    isSubOrigin: log.isSubOrigin,
+                    avatarUrl 
+                };
+            });
+
+            for(let i = 0; i < procs.length; i++) {
+                const cur = procs[i], prev = procs[i-1];
+                let isCont = (hideCont && prev && prev.speaker === cur.speaker && prev.tab === cur.tab && prev.isSubOrigin === cur.isSubOrigin && prev.avatarUrl === cur.avatarUrl && !cur.isForceHidden && !prev.isForceHidden) || cur.isForceHidden;
+                
+                let hasAv = (cur.avatarUrl && !cur.isForceHidden) ? ' has-avatar-configured' : ' no-avatar-configured';
+                let avHTML = (cur.avatarUrl && !cur.isForceHidden) ? `<img src="${cur.avatarUrl}" class="res-avatar ${isCont ? 'continued-avatar' : ''}" alt="avatar">` : `<div class="res-avatar empty-avatar"></div>`;
+                
+                const cTab = "tag-" + btoa(encodeURIComponent(cur.tab)).replace(/=/g, "");
+
+                let nameHTML = '';
+                let noNameClass = '';
+                if (!(cur.isForceHidden || isCont)) {
+                    nameHTML = `<div class="name-row"><b class="char-name-label">${cur.speaker}</b></div>`;
+                } else {
+                    noNameClass = ' no-name';
+                }
+
+                chatLogHTML += `<div class="ccb-player ${isCont?'continued-line':''}${noNameClass}${cur.isForceHidden ? ' hidden-char-line' : ''} ${hasAv} ${cTab} ${cur.charClass}" data-speaker="${cur.speaker}">\n${avHTML}\n<div class="ccb-text-wrap">\n${nameHTML}\n${processDiceMessage(cur.content, useDice)}\n</div>\n</div>\n`;
+            }
+
+            let chksHTML = '';
+            let defaultHiddenClasses = [];
+            registeredTags.forEach(t => {
+                const cTab = "tag-" + btoa(encodeURIComponent(t)).replace(/=/g, "");
+                const tBg = tagColorMap[t];
+                if (tBg && tBg !== 'transparent' && tBg !== '') {
+                    bgStyles += `#cocoback div.ccb-player.${cTab} { background-color: ${tBg}; }\n`;
+                }
+                bgStyles += `#cocoback.hide-${cTab} div.ccb-player.${cTab} { display: none !important; }\n`;
+                const isMiscTag = (t.toLowerCase() === 'other' || t.toLowerCase() === '잡담');
+                const isDefaultOff = isMiscTag && collapseOtherOnStart;
+                if (isDefaultOff) defaultHiddenClasses.push('hide-' + cTab);
+                chksHTML += `<label><input type="checkbox" class="tab-toggle-chk" data-target="${cTab}"${isDefaultOff ? '' : ' checked'}> ${t}</label>`;
+            });
+
+            const title = document.getElementById('sessionTitle').value.trim() || 'assembled_session_log';
+            const link = document.getElementById('sessionLink').value.trim();
+            const titleHTML = link ? `<a href="${link}" target="_blank" style="color: inherit; text-decoration: none;">${title}</a>` : title;
+
+            const html = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>${title}</title><style>\n@font-face { font-family: 'Pretendard'; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-Regular.woff2') format('woff2'); }\n#cocoback { position: relative; background: #222222; padding: 0; max-width: 800px; width: 100%; margin: 20px auto; box-shadow: 0 4px 12px rgba(0,0,0,0.3); overflow: hidden; }\n#cocoback, #cocoback * { line-height: 1.5; font-family: 'Pretendard', sans-serif !important; box-sizing: border-box; }\n#cocoback #tr_top { padding: 15px 20px; background: #1a1a1a; display: flex !important; align-items: center; justify-content: space-between; border-bottom: 1px solid #333333; }\n#cocoback #tr_title { color: #ffffff; font-size: 18px; font-weight: bold; margin: 0; }\n#cocoback #tr_title a { color: #ffffff; text-decoration: none; }\n#cocoback #tr_title a:hover { opacity: 0.8; text-decoration: underline !important; }\n#cocoback #ccb-btn { background: #333333; color: #dddddd; border: 1px solid #555555; padding: 6px 12px; font-size: 12px; border-radius: 4px; cursor: pointer; }\n#cocoback #ccb-lst { display: none; background: #1a1a1a; padding: 15px 20px; border-bottom: 1px solid #333333; }\n#cocoback #ccb-lst.show { display: flex; flex-wrap: wrap; gap: 16px; }\n#cocoback #ccb-lst label { display: inline-flex; align-items: center; gap: 6px; color: #aaaaaa; font-size: 13px; cursor: pointer; }\n#cocoback #tr_talks { display: flex; flex-direction: column; }\n#cocoback div.ccb-player { margin: 0; padding: 16px 20px; display: flex; gap: 12px; align-items: flex-start; border-bottom: 1px solid #333333; }\n${bgStyles}\n${charStyles}\n#cocoback .res-avatar { width: 44px; height: 44px; border-radius: 0px; border: 1px solid #444; object-fit: cover; object-position: top center; background: #111; flex-shrink: 0; }\n#cocoback .empty-avatar { border: none; background: transparent; display: none; }\n#cocoback .continued-avatar { display: none; }\n#cocoback div.ccb-player.no-avatar-configured { padding-left: 76px; }\n#cocoback .dice-box { background: #181818; border: 1px solid #333333; border-radius: 4px; padding: 8px 12px; margin: 4px 0; font-size: 14px; color: #dddddd; width: fit-content; max-width: 100%; word-break: break-all; }\n#cocoback .ccb-text-wrap { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width:0; }\n#cocoback .name-row { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }\n#cocoback .char-name-label { font-size: 14px; font-weight: bold; }\n#cocoback .char-msg-content { font-size: 14px; color: #dddddd; display: block; word-break: break-all; }\n#cocoback div.ccb-player.hidden-char-line .char-msg-content { font-weight: bold; font-style: italic; text-align: center; }\n#cocoback div.ccb-player.continued-line { padding-top: 8px !important; border-top: none; }\n#cocoback div.ccb-player.continued-line.has-avatar-configured { padding-left: 76px; }\n#cocoback div.ccb-player.continued-line.has-avatar-configured .res-avatar { display: none; }\n#cocoback div.ccb-player.no-name { align-items: center; }\n</style></head><body>\n<div id="cocoback" class="${defaultHiddenClasses.join(' ')}">\n<div id="tr_top"><p id="tr_title">${titleHTML}</p><button id="ccb-btn">탭 목록 열기</button></div>\n<div id="ccb-lst">\n${chksHTML}\n</div>\n<div id="tr_talks">\n${chatLogHTML}</div></div><script>\ndocument.getElementById('ccb-btn').onclick=function(){const lst=document.getElementById('ccb-lst');const s=lst.classList.toggle('show');this.textContent=s?'탭 목록 닫기':'탭 목록 열기';};\ndocument.querySelectorAll('.tab-toggle-chk').forEach(c=>c.addEventListener('change',function(){document.getElementById('cocoback').classList.toggle('hide-'+this.dataset.target,!this.checked);}));\n<\/script></body></html>`;
+            return { html, title };
+        }
+
+        document.getElementById('saveBtn').addEventListener('click', () => {
+            const res = generateFinalHTML(); if(!res) return;
+            const a = document.createElement('a'); 
+            a.href = URL.createObjectURL(new Blob([res.html], { type: 'text/html' }));
+            a.download = `${res.title}.html`; 
+            document.body.appendChild(a); 
+            a.click(); 
+            document.body.removeChild(a);
+        });
+        
+        document.getElementById('copyBtn').addEventListener('click', () => {
+            const res = generateFinalHTML(); if(!res) return;
+            
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(res.html)
+                    .then(() => alert('클립보드에 복사되었습니다.'))
+                    .catch(e => alert('복사 실패: ' + e));
+            } else {
+                const textArea = document.createElement("textarea");
+                textArea.value = res.html;
+                textArea.style.position = "fixed";
+                textArea.style.left = "-9999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    alert('클립보드에 복사되었습니다.');
+                } catch (err) {
+                    alert('복사 실패: 브라우저가 지원하지 않습니다.');
+                }
+                document.body.removeChild(textArea);
+            }
+        });
+
+        enableImageDropOnInput(document.getElementById('macroChatAvatar'), (dataUrl) => {
+            document.getElementById('macroChatAvatar').value = dataUrl;
+        });
+
+        window.addEventListener('DOMContentLoaded', () => { saveState(); renderCharacterConfigUI(); });
+    </script>
+</body>
+</html>
